@@ -9,9 +9,6 @@ from openai import OpenAI
 
 load_dotenv()
 
-if not os.getenv("OPENAI_API_KEY"):
-    raise RuntimeError("Set OPENAI_API_KEY in your local .env file first.")
-
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
 
@@ -28,11 +25,19 @@ def run_prompt(prompt_name: str, message: str) -> str:
 
 
 def main() -> None:
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("Set OPENAI_API_KEY in your local .env file first.")
+
     message = input("Write a support request: ").strip()
     if not message:
         raise ValueError("Please enter a support request.")
 
-    for prompt_name in ["support_assistant_v1.txt", "support_assistant_v2.txt"]:
+    prompt_names = [
+        "support_assistant_v1.txt",
+        "support_assistant_v2.txt",
+        "support_assistant_v3_few_shot.txt",
+    ]
+    for prompt_name in prompt_names:
         print(f"\n--- {prompt_name} ---\n")
         print(run_prompt(prompt_name, message))
 

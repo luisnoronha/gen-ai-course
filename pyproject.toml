@@ -8,5 +8,6 @@ dependencies = [
     "openai>=1.109.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
+    "streamlit>=1.40.0",
     "tiktoken>=0.7.0",
 ]

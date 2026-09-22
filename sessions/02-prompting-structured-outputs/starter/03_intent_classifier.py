@@ -15,13 +15,11 @@ class IntentResult(BaseModel):
     ]
     confidence: Literal["low", "medium", "high"]
     missing_information: list[str]
+    needs_human: bool
     suggested_response: str
 
 
 load_dotenv()
-
-if not os.getenv("OPENAI_API_KEY"):
-    raise RuntimeError("Set OPENAI_API_KEY in your local .env file first.")
 
 CONTEXT_PATH = Path(__file__).parent.parent / "context" / "course_rules.md"
 
@@ -30,8 +28,9 @@ def build_triage_instructions(course_rules: str) -> str:
     """Build the trusted instruction layer for the classifier.
 
     TODO: Define how the model should use course rules, classify multiple
-    requests, and handle missing information. User messages must remain model
-    input, not be interpolated into these trusted instructions.
+    requests, handle missing information, and decide when a human is required.
+    User messages must remain model input, not be interpolated into these
+    trusted instructions.
     """
     _ = course_rules
     raise NotImplementedError(
@@ -51,6 +50,9 @@ def next_action(result: IntentResult) -> str:
 
 
 def main() -> None:
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("Set OPENAI_API_KEY in your local .env file first.")
+
     message = input("Write a course-support request: ").strip()
     if not message:
         raise ValueError("Please enter a request.")
