@@ -1,8 +1,8 @@
 # Generative AI Course
 
-Working material for the first two sessions of the course. The repository will
-grow session by session; it deliberately starts with the minimum structure
-needed to prepare participants and design the exercises well.
+Working material for the Generative AI course. The repository grows session by
+session and keeps runnable examples, implementation challenges, and evaluation
+material close to the concepts taught in each class.
 
 ## Structure
 
@@ -10,6 +10,7 @@ needed to prepare participants and design the exercises well.
 - [`docs/sources.md`](docs/sources.md) — technical sources used to create the material.
 - [`sessions/01-llm-apis/`](sessions/01-llm-apis/) — Session 1 plan and, later, its code.
 - [`sessions/02-prompting-structured-outputs/`](sessions/02-prompting-structured-outputs/) — Session 2 plan and, later, its code.
+- [`sessions/03-embeddings-semantic-search/`](sessions/03-embeddings-semantic-search/) — embeddings, evaluated semantic search, and metadata-filtered vector search.
 
 ## Getting started
 

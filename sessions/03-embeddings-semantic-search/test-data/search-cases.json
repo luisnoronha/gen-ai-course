@@ -1,0 +1,34 @@
+[
+  {
+    "question": "Which mission was the first crewed Apollo flight in Earth orbit?",
+    "expected_source": "02-apollo-7-earth-orbit.md"
+  },
+  {
+    "question": "Which crew travelled around the Moon before anyone landed there?",
+    "expected_source": "03-apollo-8-lunar-orbit.md"
+  },
+  {
+    "question": "What happened during the 1967 preflight test?",
+    "expected_source": "01-apollo-1-preflight-fire.md"
+  },
+  {
+    "question": "Which crew came home after an explosion stopped the planned landing?",
+    "expected_source": "06-apollo-13-aborted-landing.md"
+  },
+  {
+    "question": "Which mission first used a vehicle to travel across the lunar surface?",
+    "expected_source": "07-apollo-15-lunar-rover.md"
+  },
+  {
+    "question": "When did the final Apollo lunar mission splash down?",
+    "expected_source": "08-apollo-17-final-mission.md"
+  },
+  {
+    "question": "How do I reset the password for my online banking account?",
+    "expected_source": null
+  },
+  {
+    "question": "Which Apollo mission landed astronauts on Mars?",
+    "expected_source": null
+  }
+]

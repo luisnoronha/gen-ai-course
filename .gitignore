@@ -9,6 +9,7 @@ private/
 venv/
 __pycache__/
 *.py[cod]
+.chroma/
 
 # Editor and operating-system files
 .vscode/

@@ -5,6 +5,7 @@ description = "Practical material for the Generative AI course"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "chromadb>=1.5.9",
     "openai>=1.109.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",

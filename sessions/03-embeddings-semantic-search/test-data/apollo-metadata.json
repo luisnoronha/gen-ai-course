@@ -1,0 +1,66 @@
+[
+  {
+    "source": "01-apollo-1-preflight-fire.md",
+    "mission_number": 1,
+    "year": 1967,
+    "mission_type": "preflight",
+    "destination": "earth",
+    "landed_on_moon": false
+  },
+  {
+    "source": "02-apollo-7-earth-orbit.md",
+    "mission_number": 7,
+    "year": 1968,
+    "mission_type": "earth_orbit",
+    "destination": "earth",
+    "landed_on_moon": false
+  },
+  {
+    "source": "03-apollo-8-lunar-orbit.md",
+    "mission_number": 8,
+    "year": 1968,
+    "mission_type": "lunar_orbit",
+    "destination": "moon",
+    "landed_on_moon": false
+  },
+  {
+    "source": "04-apollo-11-first-landing.md",
+    "mission_number": 11,
+    "year": 1969,
+    "mission_type": "lunar_landing",
+    "destination": "moon",
+    "landed_on_moon": true
+  },
+  {
+    "source": "05-apollo-12-surveyor-3.md",
+    "mission_number": 12,
+    "year": 1969,
+    "mission_type": "lunar_landing",
+    "destination": "moon",
+    "landed_on_moon": true
+  },
+  {
+    "source": "06-apollo-13-aborted-landing.md",
+    "mission_number": 13,
+    "year": 1970,
+    "mission_type": "aborted_lunar_mission",
+    "destination": "moon",
+    "landed_on_moon": false
+  },
+  {
+    "source": "07-apollo-15-lunar-rover.md",
+    "mission_number": 15,
+    "year": 1971,
+    "mission_type": "lunar_landing",
+    "destination": "moon",
+    "landed_on_moon": true
+  },
+  {
+    "source": "08-apollo-17-final-mission.md",
+    "mission_number": 17,
+    "year": 1972,
+    "mission_type": "lunar_landing",
+    "destination": "moon",
+    "landed_on_moon": true
+  }
+]
