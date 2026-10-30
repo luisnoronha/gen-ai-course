@@ -1,0 +1,346 @@
+[
+  {
+    "server": "tickets",
+    "version": "2.7.1",
+    "publisher": "it-service-management",
+    "scopes": [
+      "tickets:read",
+      "tickets:create",
+      "tickets:comment",
+      "tickets:link"
+    ],
+    "tools": [
+      {
+        "name": "search_issues",
+        "description": "Search issues across projects. Filters are combined with AND; `text` matches any word in the key, summary, description, component or labels. Returns issue summaries without comments; call get_issue for the full issue. Typical use: check whether an incident or complaint about the same problem is already open before creating a new one.",
+        "chars": 907,
+        "approx_tokens": 226,
+        "description_sha256": "71cf8a15117b"
+      },
+      {
+        "name": "get_issue",
+        "description": "Get one issue by key (e.g. MRX-2210), with description, comments and links.",
+        "chars": 244,
+        "approx_tokens": 61,
+        "description_sha256": "4717cdb1bddc"
+      },
+      {
+        "name": "create_issue",
+        "description": "Create a new issue. project: MRX (operations) or MEM (member support). issue_type: Incident, Task, Change, Problem, Complaint, Question. Returns the new key. Creating an issue notifies the project's on-call rota.",
+        "chars": 666,
+        "approx_tokens": 166,
+        "description_sha256": "5584e0afa1db"
+      },
+      {
+        "name": "add_comment",
+        "description": "Add a comment to an issue. Comments are visible to everyone who can see the issue, including members for MEM issues.",
+        "chars": 323,
+        "approx_tokens": 80,
+        "description_sha256": "ecd95e6ffb50"
+      },
+      {
+        "name": "transition_issue",
+        "description": "Move an issue to another status: Open, In Progress, Waiting, Resolved or Closed.",
+        "chars": 296,
+        "approx_tokens": 74,
+        "description_sha256": "995908d02e32"
+      },
+      {
+        "name": "link_issues",
+        "description": "Link two issues. link_type: 'relates to', 'duplicates', 'is caused by' or 'blocks'. Links are added to both issues.",
+        "chars": 390,
+        "approx_tokens": 97,
+        "description_sha256": "a310b15f0513"
+      },
+      {
+        "name": "assign_issue",
+        "description": "Assign an issue to a user.",
+        "chars": 242,
+        "approx_tokens": 60,
+        "description_sha256": "7de6a1aa48cf"
+      },
+      {
+        "name": "add_watcher",
+        "description": "Add a watcher to an issue; watchers receive every update by email.",
+        "chars": 273,
+        "approx_tokens": 68,
+        "description_sha256": "5da2d80a95f3"
+      },
+      {
+        "name": "list_projects",
+        "description": "List the projects visible to the caller.",
+        "chars": 167,
+        "approx_tokens": 41,
+        "description_sha256": "80f13e13e8e9"
+      },
+      {
+        "name": "get_project",
+        "description": "Get a project with its lead and issue types.",
+        "chars": 215,
+        "approx_tokens": 53,
+        "description_sha256": "ac0407110a47"
+      },
+      {
+        "name": "list_transitions",
+        "description": "List the statuses an issue can move to from its current status.",
+        "chars": 239,
+        "approx_tokens": 59,
+        "description_sha256": "f63750622620"
+      },
+      {
+        "name": "list_users",
+        "description": "Search users by name or role.",
+        "chars": 228,
+        "approx_tokens": 57,
+        "description_sha256": "769b3859a1ba"
+      },
+      {
+        "name": "list_components",
+        "description": "List the components of a project.",
+        "chars": 216,
+        "approx_tokens": 54,
+        "description_sha256": "4c6db69a75bf"
+      },
+      {
+        "name": "get_issue_changelog",
+        "description": "Get the history of an issue: creation and comments, with author and time.",
+        "chars": 252,
+        "approx_tokens": 63,
+        "description_sha256": "9502bd39cf12"
+      }
+    ]
+  },
+  {
+    "server": "monitoring",
+    "version": "2.9.4",
+    "publisher": "observability-team",
+    "scopes": [
+      "monitoring:read",
+      "monitoring:ack"
+    ],
+    "tools": [
+      {
+        "name": "list_alerts",
+        "description": "List alerts. severity: warning, error or critical. cleared=false returns active alerts. Each item has id, severity, device, datasource, datapoint, current_value, threshold, start time and ack state. Large estates can return hundreds of alerts; use device and severity filters.",
+        "chars": 651,
+        "approx_tokens": 162,
+        "description_sha256": "51e212008981"
+      },
+      {
+        "name": "get_alert",
+        "description": "Get one alert by id (LMA... or ALR-...), with its current value and threshold.",
+        "chars": 257,
+        "approx_tokens": 64,
+        "description_sha256": "f29c617960af"
+      },
+      {
+        "name": "ack_alert",
+        "description": "Acknowledge an alert with a comment. Acknowledging stops escalation for this alert but does not clear it.",
+        "chars": 326,
+        "approx_tokens": 81,
+        "description_sha256": "c2694ed387c7"
+      },
+      {
+        "name": "get_device",
+        "description": "Get a monitored device (an exchange component): version, instances, dependencies and collector.",
+        "chars": 271,
+        "approx_tokens": 67,
+        "description_sha256": "9bef36ed14d9"
+      },
+      {
+        "name": "list_devices",
+        "description": "List monitored devices, optionally by group.",
+        "chars": 245,
+        "approx_tokens": 61,
+        "description_sha256": "b4297f3c4e4f"
+      },
+      {
+        "name": "get_device_datapoints",
+        "description": "Get recent datapoints for a device, one value per minute. datasource: Latency, Errors, Queue, CPU, Memory, Disk or 'all'. minutes: 1 to 30. Values are the worst instance for CPU and Memory.",
+        "chars": 474,
+        "approx_tokens": 118,
+        "description_sha256": "36aafa077bdd"
+      },
+      {
+        "name": "get_instance_datapoints",
+        "description": "Get recent datapoints for one instance of a device (status, memory, CPU, latency).",
+        "chars": 361,
+        "approx_tokens": 90,
+        "description_sha256": "d36d6974b378"
+      },
+      {
+        "name": "search_logs",
+        "description": "Search collected logs (LM Logs). Filters: device, query (substring), level. Returns the most recent matches.",
+        "chars": 508,
+        "approx_tokens": 127,
+        "description_sha256": "08bf3cbede14"
+      },
+      {
+        "name": "list_dashboards",
+        "description": "List dashboards.",
+        "chars": 145,
+        "approx_tokens": 36,
+        "description_sha256": "666df127e866"
+      },
+      {
+        "name": "get_dashboard",
+        "description": "Get a dashboard definition.",
+        "chars": 218,
+        "approx_tokens": 54,
+        "description_sha256": "4e68020274cd"
+      },
+      {
+        "name": "list_reports",
+        "description": "List scheduled reports.",
+        "chars": 149,
+        "approx_tokens": 37,
+        "description_sha256": "841b278ac0e0"
+      },
+      {
+        "name": "list_collectors",
+        "description": "List collectors and their status.",
+        "chars": 162,
+        "approx_tokens": 40,
+        "description_sha256": "ee42eb4eb171"
+      },
+      {
+        "name": "get_collector_status",
+        "description": "Get the status of one collector, including the time of its last poll.",
+        "chars": 267,
+        "approx_tokens": 66,
+        "description_sha256": "1ad74af23d86"
+      },
+      {
+        "name": "list_alert_rules",
+        "description": "List alert rules: datapoint, threshold and escalation chain.",
+        "chars": 190,
+        "approx_tokens": 47,
+        "description_sha256": "6d219f9f4dc8"
+      },
+      {
+        "name": "list_escalation_chains",
+        "description": "List escalation chains and their stages.",
+        "chars": 176,
+        "approx_tokens": 44,
+        "description_sha256": "68c56b4e5800"
+      },
+      {
+        "name": "list_sdts",
+        "description": "List scheduled downtime (SDT) windows. Devices in SDT do not open new alerts.",
+        "chars": 276,
+        "approx_tokens": 69,
+        "description_sha256": "3704d351eba5"
+      },
+      {
+        "name": "create_sdt",
+        "description": "Put a device in scheduled downtime (SDT) for a number of minutes: no new alerts are opened for it during that time. Use for planned maintenance.",
+        "chars": 405,
+        "approx_tokens": 101,
+        "description_sha256": "0cee3136b749"
+      },
+      {
+        "name": "get_audit_log",
+        "description": "Get recent operational actions recorded by the platform (who, what, outcome).",
+        "chars": 246,
+        "approx_tokens": 61,
+        "description_sha256": "5f5d78dc24ea"
+      }
+    ]
+  },
+  {
+    "server": "deployments",
+    "version": "1.12.0",
+    "publisher": "platform-team",
+    "scopes": [
+      "deployments:read",
+      "deployments:rollback",
+      "deployments:restart"
+    ],
+    "tools": [
+      {
+        "name": "list_deployments",
+        "description": "List deployments and configuration changes in an environment, most recent first. Each item has deployment_id, service, kind (deploy or config), description, time, versions and state (active or rolled back).",
+        "chars": 518,
+        "approx_tokens": 129,
+        "description_sha256": "3a59aef47db7"
+      },
+      {
+        "name": "get_deployment",
+        "description": "Get one deployment or configuration change by id (e.g. CHG-4310).",
+        "chars": 259,
+        "approx_tokens": 64,
+        "description_sha256": "ce6fc3733461"
+      },
+      {
+        "name": "get_deployment_diff",
+        "description": "Get what a deployment changed.",
+        "chars": 229,
+        "approx_tokens": 57,
+        "description_sha256": "c36b103f56c1"
+      },
+      {
+        "name": "list_services",
+        "description": "List services with their current version.",
+        "chars": 168,
+        "approx_tokens": 42,
+        "description_sha256": "e03ba4ff0d88"
+      },
+      {
+        "name": "get_service",
+        "description": "Get a service: version, replicas and whether it is critical.",
+        "chars": 239,
+        "approx_tokens": 59,
+        "description_sha256": "8962f9e2c52b"
+      },
+      {
+        "name": "list_environments",
+        "description": "List environments.",
+        "chars": 149,
+        "approx_tokens": 37,
+        "description_sha256": "fa207abe3b24"
+      },
+      {
+        "name": "get_pipeline_status",
+        "description": "Get the status of a service's delivery pipeline.",
+        "chars": 235,
+        "approx_tokens": 58,
+        "description_sha256": "8c2f3c01bff1"
+      },
+      {
+        "name": "list_feature_flags",
+        "description": "List the feature flags of a service.",
+        "chars": 222,
+        "approx_tokens": 55,
+        "description_sha256": "7d4b005842e3"
+      },
+      {
+        "name": "rollback_deployment",
+        "description": "Roll back a deployment or configuration change. Critical services need a confirmation_ref from an approval. Pass an idempotency_key so that a repeated request does not roll back twice.",
+        "chars": 558,
+        "approx_tokens": 139,
+        "description_sha256": "bb946ade75de"
+      },
+      {
+        "name": "restart_workload",
+        "description": "Restart a service, or one instance of it when `instance` is given. Critical services need a confirmation_ref. Pass an idempotency_key so that a repeated request does not restart twice.",
+        "chars": 623,
+        "approx_tokens": 155,
+        "description_sha256": "a56a5cbd82e2"
+      },
+      {
+        "name": "promote_release",
+        "description": "Promote a release to production.",
+        "chars": 257,
+        "approx_tokens": 64,
+        "description_sha256": "1352216d9244"
+      },
+      {
+        "name": "pause_pipeline",
+        "description": "Pause the delivery pipeline of a service.",
+        "chars": 223,
+        "approx_tokens": 55,
+        "description_sha256": "5277f4d385d8"
+      }
+    ]
+  }
+]

@@ -1,57 +1,12 @@
-"""Exercise 1 — Your MCP server: one incident, several sources.
+"""Exercise 1 — Completed MCP server with correlation.
 
-The problem
-    10:00. The gateway starts leaking memory. In ten minutes the team receives a
-    monitoring alert, a ticket (MRX-2210) and an e-mail from a member: "our
-    orders are acknowledged after 2-3 seconds". It is one problem. The agent
-    opens three incidents, and three people start working on it.
+correlate finds the component of each event (from the text when the event does
+not name one) and its kind of symptom (slow or errors). An event joins an open
+incident when, within 30 minutes of its last event, the symptoms are compatible
+and the component is the same, or shares a dependency and the symptom is errors.
+Requests (no component, no symptom) always stay on their own.
 
-    At 11:00 the opposite: market-data gets slow while the gateway has errors.
-    Same time, similar words, two problems. Merging them hides one.
-
-    Before any code: events/dev.yaml has the 22 events of one morning. How many
-    incidents are there? Answer by hand, and write down how you decided.
-
-Build, in this file
-    - correlate(event, open_incidents): the key of the open incident this event
-      belongs to, or None to open a new one. As supplied it always returns None.
-    - The descriptions of the two server tools (report_event, list_incidents):
-      when the model must call them, with what, and what it gets back. Today
-      they say "Report an event." They are all the model knows about your server.
-
-Watch out
-    - Complaints do not name a component: "orders are acknowledged after 2-3
-      seconds" is the gateway, but the word "gateway" is not there.
-    - Time: the same leak at 10:00 and at 15:00 are two incidents.
-    - A shared cause: errors on the gateway and on settlement at the same time
-      can be one incident, because both depend on reference-db.
-    - Same time is not same incident: latency on market-data next to errors on the gateway.
-    - Requests ("add member VALE-INV to the test environment") are not incidents.
-    - Two ways to fail: merging too much hides an incident, splitting too much
-      duplicates work. check_correlation.py measures both (precision and recall).
-
-Shapes used by correlate
-
-    event = {"source": "monitoring" | "ticket" | "complaint",
-             "time": 665,                    # minutes since midnight
-             "component": "market-data",     # may be None (complaints, some tickets)
-             "text": "latency_high on market-data (353 ms)"}
-
-    incident = {"key": "MRX-2210",
-                "components": ["order-gateway"],
-                "first_seen": 610, "last_seen": 612,
-                "events": [event, ...]}
-
-    The topology is in meridian.model.load_topology(); each component has depends_on.
-
-Hints (read only if stuck)
-    1. Write the rules you used by hand, one per line. Most become one `if` each.
-    2. Component of a complaint: a small table of words per component
-       ("acknowledged", "orders", "rejected" -> order-gateway; "prices", "quotes" -> market-data).
-    3. Classify the symptom too: slow or errors. Latency on one component and errors
-       on another are rarely the same incident; errors on two components that share
-       a dependency usually are.
-    4. Compare the event time with last_seen, not first_seen. Start with 30 minutes.
+The tool descriptions tell the model when to report an event and what it gets back.
 """
 
 from __future__ import annotations
@@ -60,14 +15,72 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from meridian.model import load_topology
 from meridian.tools import MeridianTools
+
+WINDOW_MINUTES = 30
+DEPENDS_ON = {name: set(component.depends_on) for name, component in load_topology().components.items()}
+
+# Words that point to a component, for events that do not name one (complaints, some tickets).
+COMPONENT_WORDS = {
+    "order-gateway": ["acknowledg", "order", "reject", "503", "gateway"],
+    "market-data": ["quote", "market data", "feed", "price"],
+    "settlement": ["settlement", "batch"],
+}
+# Symptom families. Memory pressure shows up as latency; a queue builds up with either.
+SYMPTOM_WORDS = {
+    "slow": ["latency", "slow", "late", "delay", "acknowledg", "memory"],
+    "errors": ["error", "reject", "503", "fail", "refused"],
+}
+
+
+def component_of(event: dict[str, Any]) -> str | None:
+    if event.get("component"):
+        return event["component"]
+    text = event["text"].lower()
+    for component, words in COMPONENT_WORDS.items():
+        if any(word in text for word in words):
+            return component
+    return None
+
+
+def symptoms_of(event: dict[str, Any]) -> set[str]:
+    text = event["text"].lower()
+    if "queue" in text:
+        return set(SYMPTOM_WORDS)
+    return {family for family, words in SYMPTOM_WORDS.items() if any(word in text for word in words)}
+
+
+def related(first: str, second: str) -> bool:
+    """Two components share a dependency (e.g. order-gateway and settlement both depend on reference-db)."""
+    return bool(DEPENDS_ON.get(first, set()) & DEPENDS_ON.get(second, set()))
 
 
 def correlate(event: dict[str, Any], open_incidents: list[dict[str, Any]]) -> str | None:
-    """Return the key of the open incident this event belongs to, or None to open a new incident."""
-    # Hint: first decide the component(s) and the kind of symptom of the event; then, for each open
-    # incident still inside the time window, ask "same component, or a shared dependency for errors?".
-    return None
+    """Same incident when, within 30 minutes of its last event, the component is the same (or shares a dependency
+    and the symptom is errors) and the symptoms are compatible. Events about no component or symptom (requests)
+    always start their own incident."""
+    component, symptoms = component_of(event), symptoms_of(event)
+    if component is None or not symptoms:
+        return None
+    best: tuple[int, int, str] | None = None
+    for incident in open_incidents:
+        if event["time"] - incident["last_seen"] > WINDOW_MINUTES:
+            continue
+        incident_symptoms = set().union(*(symptoms_of(other) for other in incident["events"]))
+        if not symptoms & incident_symptoms:
+            continue
+        components = set(incident["components"]) or {component_of(other) for other in incident["events"]} - {None}
+        if component in components:
+            strength = 2
+        elif "errors" in symptoms and any(related(component, other) for other in components):
+            strength = 1
+        else:
+            continue
+        candidate = (strength, incident["last_seen"], incident["key"])
+        if best is None or candidate > best:
+            best = candidate
+    return best[2] if best else None
 
 
 # The server -----------------------------------------------------------------
@@ -93,8 +106,16 @@ def build_server(tools: MeridianTools) -> FastMCP:
     registry = _open_incidents(tools)
     sim = tools.sim
 
-    # Write the description: when to call it, what to pass in each argument, what comes back.
-    @server.tool(description="Report an event.", run_in_thread=False)
+    @server.tool(
+        description=(
+            "Report one event you are handling: the alert of the incident, a ticket or a member complaint. "
+            "The server attaches it to the open incident it belongs to, or opens a new incident ticket. "
+            "source: monitoring, ticket or complaint. component: the affected component if known. "
+            "Returns the incident key and whether the event was attached to an existing incident. "
+            "Call it once per event; do not create incident tickets yourself."
+        ),
+        run_in_thread=False,
+    )
     def report_event(source: str, text: str, component: str | None = None) -> dict[str, Any]:
         def run() -> dict[str, Any]:
             event = {"source": source, "time": _minutes(tools, sim.state.tick), "component": component, "text": text}
@@ -118,8 +139,7 @@ def build_server(tools: MeridianTools) -> FastMCP:
 
         return tools.record_call("incidents.report_event", {"source": source, "text": text, "component": component}, run)
 
-    # Write the description.
-    @server.tool(description="List incidents.", run_in_thread=False)
+    @server.tool(description="List the incidents known to the server, with their components, first and last event time and number of events.", run_in_thread=False)
     def list_incidents() -> dict[str, Any]:
         def run() -> dict[str, Any]:
             return {"incidents": [{key: value for key, value in incident.items() if key != "events"} | {"events": len(incident["events"])} for incident in registry.values()]}
