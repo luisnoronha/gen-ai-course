@@ -1,0 +1,64 @@
+# Exercise 1C: a new note arrives and the team's memory already has records about the same subject.
+# What should happen: add (a new record), ignore (already known), update (the same record, completed)
+# or supersede (a new record that replaces the old one).
+#
+# Each case: `existing` records (as in the store), the `new` note (already through to_memory, with its
+# origin), and `expect`: the operations accepted, and the record targeted when there is one.
+# All new notes are written by team trading-ops at 2026-11-04 10:00.
+
+cases:
+  - id: U01
+    existing:
+      - {memory_id: MEM-1001, kind: known_issue, subject: order-gateway, content: "order-gateway 2.4.0 leaks memory on one instance at a time; restarting that instance fixes it.", source_type: tool, team: trading-ops, created_at: "2026-11-03 11:00", valid_until: "2026-12-03 11:00", confidence: 0.8, status: active}
+    new: {kind: known_issue, subject: order-gateway, content: "order-gateway 2.4.0 leaks memory on one instance at a time; restarting that instance fixes it again.", source_type: tool, confidence: 0.8}
+    expect: {ops: [ignore], target: MEM-1001}
+    why: "The same lesson, seen again. A second copy is noise, and it makes the lesson look twice as certain."
+
+  - id: U02
+    existing:
+      - {memory_id: MEM-1002, kind: known_issue, subject: order-gateway, content: "order-gateway 2.4.0 leaks memory on one instance at a time; restart only that instance.", source_type: tool, team: trading-ops, created_at: "2026-11-03 11:00", valid_until: "2026-12-03 11:00", confidence: 0.8, status: active}
+    new: {kind: known_issue, subject: order-gateway, content: "CHG-4602 deployed order-gateway 2.4.1, which fixes the memory leak of 2.4.0; restarting an instance is no longer needed.", source_type: tool, confidence: 0.8}
+    expect: {ops: [supersede], target: MEM-1002}
+    why: "The new version fixed the problem. The old lesson must stop being current, and its history must stay."
+
+  - id: U03
+    existing:
+      - {memory_id: MEM-1003, kind: procedure, subject: order-gateway, content: "When order-gateway latency is high, restart the whole order-gateway service.", source_type: agent, team: trading-ops, created_at: "2026-10-20 10:00", confidence: 0.5, status: active}
+    new: {kind: procedure, subject: order-gateway, content: "Correction: when order-gateway latency is high, restart only the instance with high memory, never the whole service.", source_type: user, confidence: 0.9}
+    expect: {ops: [supersede], target: MEM-1003}
+    why: "The on-call engineer corrects an earlier conclusion of the agent."
+
+  - id: U04
+    existing:
+      - {memory_id: MEM-1004, kind: procedure, subject: reference-db, content: "Do not retry the CHG-4471 rollback alone: it needs a db-team rollback window.", source_type: user, team: trading-ops, created_at: "2026-11-03 16:00", confidence: 0.9, status: active}
+    new: {kind: procedure, subject: reference-db, content: "Correction: the CHG-4471 rollback can be retried by the agent at any time, no rollback window needed.", source_type: document, confidence: 0.3}
+    expect: {ops: [add, ignore]}
+    why: "A ticket says it corrects the engineer. A weaker origin does not replace a stronger one: keep both visible, or drop the new one."
+
+  - id: U05
+    existing:
+      - {memory_id: MEM-1005, kind: known_issue, subject: order-gateway, content: "latency_high on order-gateway between 09:00 and 09:20 is a false positive: the connection pool warms up after the open.", source_type: user, team: trading-ops, created_at: "2026-10-14 09:30", valid_until: "2026-12-14 09:30", confidence: 0.9, status: active}
+    new: {kind: known_issue, subject: order-gateway, content: "The same connection pool warm-up false positive on order-gateway latency_high also happens between 13:00 and 13:10, after the lunch restart window.", source_type: user, confidence: 0.9}
+    expect: {ops: [update], target: MEM-1005}
+    why: "The same known issue, with one more window. One record, completed, is easier to read than two."
+
+  - id: U06
+    existing:
+      - {memory_id: MEM-1006, kind: known_issue, subject: order-gateway, content: "order-gateway 2.4.0 leaks memory on one instance at a time; restart only that instance.", source_type: tool, team: trading-ops, created_at: "2026-11-03 11:00", valid_until: "2026-12-03 11:00", confidence: 0.8, status: active}
+    new: {kind: fact, subject: order-gateway, content: "Members NORDBANK and ATLAS-SEC send most orders between 14:30 and 15:00.", source_type: tool, confidence: 0.8}
+    expect: {ops: [add]}
+    why: "Same component, different topic. It is new knowledge, not an update."
+
+  - id: U07
+    existing:
+      - {memory_id: MEM-1007, kind: known_issue, subject: order-gateway, content: "order-gateway 2.4.0 leaks memory on one instance at a time; restarting that instance fixes it.", source_type: user, team: settlement-ops, created_at: "2026-11-03 12:00", confidence: 0.9, status: active}
+    new: {kind: known_issue, subject: order-gateway, content: "order-gateway 2.4.0 leaks memory on one instance at a time; restarting that instance fixes it.", source_type: tool, confidence: 0.8}
+    expect: {ops: [add]}
+    why: "The same text exists, but in another team's memory. Our team cannot rely on it, or change it."
+
+  - id: U08
+    existing:
+      - {memory_id: MEM-1008, kind: known_issue, subject: market-data, content: "market-data feed delays after the 08:00 venue maintenance are expected until 08:30.", source_type: user, team: trading-ops, created_at: "2026-09-01 08:40", valid_until: "2026-10-01 08:40", confidence: 0.9, status: active}
+    new: {kind: known_issue, subject: market-data, content: "market-data feed delays after the 08:00 venue maintenance are expected until 08:30, confirmed again today.", source_type: user, confidence: 0.9}
+    expect: {ops: [supersede], target: MEM-1008}
+    why: "The old record expired. Confirming it again is a new record that replaces the expired one, not a duplicate to ignore."

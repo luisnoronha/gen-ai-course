@@ -12,9 +12,9 @@ You work directly in the files of `starter/`. Each file starts with its exercise
 
 | Exercise | File | You build |
 |---|---|---|
-| 1. What is worth remembering | `starter/writing.py` | `origin_of`, `to_memory`: store or not, origin, confidence, validity |
-| 2. Remember without believing | `starter/reading.py` | `recall`: own team, current, presented with origin, age, conflicts and changes since; the agent's instructions |
-| 3. Shift handover and forgetting | `starter/handover.py` | `after_run` (the handover), `forget` |
+| 1. What is worth remembering | `starter/writing.py` | `origin_of`, `to_memory`: store or not, origin, confidence, validity; `reconcile`: add, ignore, update or supersede what is already stored |
+| 2. Remember without believing | `starter/reading.py` | `recall`: own team, current, presented with origin, age, conflicts and changes since; the agent's instructions; `rank_incidents`: have we seen this before? |
+| 3. Shift handover and forgetting | `starter/handover.py` | `after_run` (the handover), `forget`; `propose_procedure` and `approve`: from repeated incidents to a procedure a person approved |
 
 `starter/harness.py` wires the pieces. You do not need to edit it. The store is supplied (`meridian/memory.py`; read its docstring).
 
@@ -28,6 +28,8 @@ You work directly in the files of `starter/`. Each file starts with its exercise
 | `s04-recurring-leak-day1`, `-day2` | The same leak two days in a row, on a different instance. | 3 |
 
 Some cases start with memories from earlier shifts (`memory_seed` in the case file).
+
+The check scripts also use two data files in `memory/`: `updates.yaml` (8 new notes against records already stored, exercise 1) and `history.yaml` (7 closed incidents and 6 queries, exercise 2).
 
 ## The commands
 
@@ -51,15 +53,15 @@ uv run python -m meridian.run --harness sessions/course-02-agentic-ai/04-memory/
 
 | Exercise | Done when |
 |---|---|
-| 1 | `check_writing.py` gives every origin right and ≥ 15/17 candidates; `s04-ticket-copied-note` passes. |
-| 2 | `check_recall.py` gives 7/7; `s04-stale-false-positive` and `s04-conflicting-shift-notes` pass. |
-| 3 | `check_handover.py` gives 7/7; day 1 then day 2 with one store pass. |
+| 1 | `check_writing.py` gives every origin right, at least 15 of 17 candidates and at least 7 of 8 updates; `s04-ticket-copied-note` passes. |
+| 2 | `check_recall.py` gives 10/10; `s04-stale-false-positive` and `s04-conflicting-shift-notes` pass. |
+| 3 | `check_handover.py` gives 11/11; day 1 then day 2 with one store pass. |
 
 ## Write down
 
-- **1.** Your table origin → confidence, and the candidate that was hardest to decide.
-- **2.** What your recall shows for each memory, and why that order.
-- **3.** Day 2 with and without memory: does memory change the result, or only the steps and tokens? Is it worth what you store?
+- **1.** Your table origin → confidence, the candidate that was hardest to decide, and how you tell update from supersede.
+- **2.** What your recall shows for each memory, and why that order. Which query of `history.yaml` your first version got wrong, and why.
+- **3.** Day 2 with and without memory: does memory change the result, or only the steps and tokens? Is it worth what you store? Who in your team should approve a procedure, and when should a proposal expire?
 
 ## Rules
 

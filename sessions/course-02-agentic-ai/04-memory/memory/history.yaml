@@ -1,0 +1,48 @@
+# Exercise 2C: past incidents, as the incident system keeps them after they are closed.
+# The agent asks "have we seen this before?" with a description of what it sees now.
+# rank_incidents must return the past incidents that look like the current one, the most similar first.
+
+incidents:
+  - {id: INC-3920, team: trading-ops, date: "2026-09-14", component: order-gateway,
+     symptoms: "order-gateway latency high, memory rising on one instance, GC pauses in the logs",
+     cause: "memory leak in the connection cache of order-gateway 2.3.2",
+     fix: "restarted the instance with high memory; upgraded to 2.3.3"}
+  - {id: INC-4005, team: trading-ops, date: "2026-10-07", component: order-gateway,
+     symptoms: "order-gateway latency high between 09:00 and 09:15 after the open, all instances, memory flat, pool warm-up messages",
+     cause: "connection pool warm-up after the open",
+     fix: "none: false positive, closed after 09:15"}
+  - {id: INC-4033, team: trading-ops, date: "2026-10-15", component: reference-db,
+     symptoms: "order-gateway timeouts, connection errors, logs show the reference-db connection pool exhausted",
+     cause: "reference-db connection pool too small after CHG-4350",
+     fix: "rolled back CHG-4350 in a db-team rollback window"}
+  - {id: INC-3990, team: trading-ops, date: "2026-10-02", component: market-data,
+     symptoms: "market-data feed delayed after the 08:00 venue maintenance, delays on every instrument",
+     cause: "venue maintenance",
+     fix: "none: delays ended at 08:30"}
+  - {id: INC-4080, team: trading-ops, date: "2026-10-29", component: order-gateway,
+     symptoms: "order-gateway error rate high, HTTP 503 responses after a configuration change, latency normal",
+     cause: "wrong routing configuration in CHG-4390",
+     fix: "rolled back CHG-4390"}
+  - {id: SET-210, team: settlement-ops, date: "2026-10-30", component: order-gateway,
+     symptoms: "order-gateway memory rising, latency high, end-of-day batch slow",
+     cause: "batch sent all orders at once",
+     fix: "settlement batch split in four; contact ana.costa"}
+  - {id: INC-4110, team: trading-ops, date: "2026-11-03", component: order-gateway,
+     symptoms: "order-gateway latency high, memory rising on order-gateway-2, GC pauses in the logs",
+     cause: "memory leak in order-gateway 2.4.0, one instance at a time",
+     fix: "restarted order-gateway-2 only"}
+
+# Each query: what the agent sees now, and the past incidents that count as a correct first answer.
+queries:
+  - {id: Q1, team: trading-ops, description: "order-gateway latency high, memory rising on order-gateway-1, GC pauses", expect: [INC-4110, INC-3920],
+     why: "The same leak, on another instance."}
+  - {id: Q2, team: trading-ops, description: "order-gateway HTTP 503 errors after a configuration change, latency normal", expect: [INC-4080],
+     why: "The most recent incident on the same component is a leak. The symptoms say configuration, not memory."}
+  - {id: Q3, team: trading-ops, description: "order-gateway latency high at 09:05 on all instances, memory flat", expect: [INC-4005],
+     why: "Latency on all instances with flat memory after the open is the warm-up pattern, not the leak."}
+  - {id: Q4, team: trading-ops, description: "order-gateway timeouts and connection errors, reference-db connection pool exhausted in the logs", expect: [INC-4033],
+     why: "The symptom shows on order-gateway; the cause was in reference-db. A filter on the component misses it."}
+  - {id: Q5, team: trading-ops, description: "market-data feed delays on every instrument since 08:00", expect: [INC-3990],
+     why: "Another component, the same morning pattern."}
+  - {id: Q6, team: trading-ops, description: "order-gateway memory rising and latency high, batch slow", expect: [INC-4110, INC-3920],
+     why: "SET-210 matches more words, but it belongs to settlement-ops. It must not come back at all."}

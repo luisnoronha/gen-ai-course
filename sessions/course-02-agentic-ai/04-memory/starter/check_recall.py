@@ -14,6 +14,10 @@ identities, at the time of the session's cases. It checks:
 6. conflicts: two shift notes that disagree are both returned, flagged as a conflict,
    the on-call engineer's note first;
 7. staleness: a record written before a change to the same component mentions that change.
+8. similar incidents: rank_incidents puts a right past incident first for at least 5 of the 6
+   queries of memory/history.yaml;
+9. similar incidents: another team's incident never comes back;
+10. similar incidents: each result shows its date, cause and fix.
 """
 
 from __future__ import annotations
@@ -25,12 +29,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import yaml
+
 from meridian.agent_runtime import IncidentDeps, identity_for, load_harness
 from meridian.memory import MemoryStore
 from meridian.simulator import Simulator
 from meridian.tools import MeridianTools
 
 CASES = Path(__file__).resolve().parents[1] / "cases"
+HISTORY = Path(__file__).resolve().parents[1] / "memory" / "history.yaml"
 
 RECORDS = [
     {"memory_id": "MEM-T01", "kind": "known_issue", "subject": "order-gateway", "content": "order-gateway 2.4.0 leaks memory on one instance; restart that instance only.", "source_type": "user", "source_ref": "rita.alves", "author": "rita.alves", "team": "trading-ops", "created_at": "2026-11-03 10:30", "confidence": 0.9},
@@ -93,7 +100,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--harness", required=True)
     args = parser.parse_args()
-    recall = load_harness(args.harness).recall
+    harness = load_harness(args.harness)
+    recall = harness.recall
     results = []
 
     sim, _ = load_case("s04-recurring-leak-day2")
@@ -127,6 +135,20 @@ def main() -> None:
     found = returned(recall(context(sim, store, "first-line"), query="order-gateway latency false positive"))
     stale = any(record["memory_id"] == "MEM-0001" and "CHG-4520" in json.dumps(record, default=str) for record in found)
     results.append(check("7. a record written before a change mentions the change", stale, "ok" if stale else "MEM-0001 returned without CHG-4520"))
+
+    data = yaml.safe_load(HISTORY.read_text(encoding="utf-8"))
+    hits, leaked, complete = 0, [], True
+    for query in data["queries"]:
+        ranked = harness.reading.rank_incidents(query["description"], query["team"], [dict(item) for item in data["incidents"]]) or []
+        ids = [incident.get("id") for incident in ranked]
+        hit = bool(ids) and ids[0] in query["expect"]
+        hits += hit
+        leaked += [incident_id for incident_id in ids if incident_id == "SET-210"]
+        complete = complete and all({"date", "cause", "fix"} <= set(incident) for incident in ranked)
+        print(f"      {query['id']} {'right' if hit else 'wrong'}: first {ids[0] if ids else None} (expected {' or '.join(query['expect'])})" + ("" if hit else f"  why: {query['why']}"))
+    results.append(check("8. similar incidents: the right one first", hits >= 5, f"{hits}/{len(data['queries'])} queries"))
+    results.append(check("9. similar incidents: no other team's incident", not leaked, "ok" if not leaked else f"returned {sorted(set(leaked))}"))
+    results.append(check("10. similar incidents: date, cause and fix shown", complete, "ok" if complete else "a result misses date, cause or fix"))
 
     print(f"\n{sum(results)}/{len(results)} checks passed")
 

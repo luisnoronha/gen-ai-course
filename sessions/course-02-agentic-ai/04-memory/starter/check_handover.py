@@ -12,6 +12,11 @@ calls after_run as the runner does, and then calls forget as the model would.
 5. forget deletes an own-team record and the deletion is logged;
 6. a forgotten record is not recalled;
 7. forget refuses a record of another team.
+8. propose_procedure refuses a proposal backed by a single incident;
+9. with two incidents, it stores a proposal, not a procedure, with medium confidence;
+10. approve refuses the agent itself and a person of another team;
+11. approve by the on-call engineer creates a procedure (origin user, author the approver)
+    and the proposal is no longer current.
 """
 
 from __future__ import annotations
@@ -99,6 +104,35 @@ def main() -> None:
     except KeyError:
         kept = False
     results.append(check("7. forget refuses another team's record", kept, f"answer {json.dumps(answer, default=str)[:90]}"))
+
+    def procedures() -> list[Any]:
+        return [record for record in store.all() if record.status == "active" and record.kind in ("procedure", "proposal") and record.team == "trading-ops"]
+
+    text = "When order-gateway latency is high and one instance has memory above 90%, restart only that instance."
+    before = {record.memory_id for record in procedures()}
+    harness.propose_procedure(ctx, content=text, subject="order-gateway", incidents=["INC-4110"])
+    added = [record for record in procedures() if record.memory_id not in before]
+    results.append(check("8. a single incident is not enough", not added, "ok" if not added else f"stored {added[0].kind} {added[0].memory_id}"))
+
+    answer = harness.propose_procedure(ctx, content=text, subject="order-gateway", incidents=["INC-4110", "INC-4121"])
+    added = [record for record in procedures() if record.memory_id not in before]
+    proposal = added[0] if added else None
+    stored_as_proposal = bool(proposal) and proposal.kind == "proposal" and proposal.confidence <= 0.6
+    results.append(check("9. two incidents: stored as a proposal", stored_as_proposal, f"{proposal.kind}, confidence {proposal.confidence}" if proposal else f"answer {json.dumps(answer, default=str)[:90]}"))
+
+    now = deps.sim.clock.timestamp(deps.sim.state.tick)
+    pid = proposal.memory_id if proposal else "MEM-NONE"
+    by_agent = harness.approve(store, pid, identity_for("first-line"), now) or {}
+    by_other = harness.approve(store, pid, identity_for("settlement-analyst"), now) or {}
+    refused = not by_agent.get("approved") and not by_other.get("approved") and bool(proposal) and store.get(pid).status == "active"
+    results.append(check("10. the agent and another team cannot approve", refused, "ok" if refused else f"agent {by_agent}, other team {by_other}"))
+
+    answer = harness.approve(store, pid, identity_for("on-call"), now) or {}
+    approved = None
+    if answer.get("approved") and answer.get("memory_id"):
+        approved = store.get(answer["memory_id"])
+    good = bool(approved) and approved.kind == "procedure" and approved.source_type == "user" and approved.author == "rita.alves" and store.get(pid).status != "active"
+    results.append(check("11. the on-call engineer approves: a procedure, the proposal superseded", good, "ok" if good else f"answer {json.dumps(answer, default=str)[:90]}"))
 
     print(f"\n{sum(results)}/{len(results)} checks passed")
 

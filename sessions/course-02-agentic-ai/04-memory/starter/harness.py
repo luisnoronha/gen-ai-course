@@ -43,7 +43,10 @@ handover = _load("handover")
 # Used by the check scripts and by the runner.
 remember = writing.remember
 recall = reading.recall
+similar_incidents = reading.similar_incidents
 forget = handover.forget
+propose_procedure = handover.propose_procedure
+approve = handover.approve
 after_run = handover.after_run
 
 
@@ -97,6 +100,6 @@ def restart_instance(ctx: RunContext[IncidentDeps], instance_id: str) -> dict[st
 
 def build_agent(model: Any) -> Agent[IncidentDeps, IncidentReport]:
     agent = Agent(model, deps_type=IncidentDeps, output_type=IncidentReport, instructions=reading.INSTRUCTIONS)
-    for tool in (remember, recall, forget, read_metrics, read_logs, recent_changes, search_tickets, read_ticket, read_runbook, restart_instance):
+    for tool in (remember, recall, similar_incidents, forget, propose_procedure, read_metrics, read_logs, recent_changes, search_tickets, read_ticket, read_runbook, restart_instance):
         agent.tool(tool)
     return agent
