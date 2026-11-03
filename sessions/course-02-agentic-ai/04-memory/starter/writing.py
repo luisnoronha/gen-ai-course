@@ -76,42 +76,79 @@ from meridian.agent_runtime import IncidentDeps
 
 
 def origin_of(evidence: list[str]) -> tuple[str, str]:
-    """A. (source_type, source_ref) of a note, from the evidence the model cites."""
+    """A. Decide where a note comes from, from the evidence the model cites with it.
+
+    Receives
+        evidence: the ids the model gave with the note, for example
+            ["metrics/order-gateway/15", "logs/order-gateway/53"], ["MRX-2301"], ["user:rita.alves"] or [].
+    Returns
+        (source_type, source_ref)
+        source_type: exactly one of "user", "tool", "document", "agent".
+        source_ref:  the evidence as one string, e.g. "MRX-2301, logs/order-gateway/53".
+
+    As supplied: always "agent".
+    """
     # Hint: look at the shape of each id. As supplied: always "agent".
     return "agent", ", ".join(evidence)
 
 
 def to_memory(candidate: dict[str, Any]) -> dict[str, Any] | None:
-    """B. What to store for this candidate note, or None to store nothing.
+    """B. Decide whether a candidate note is stored, and with which fields.
 
-    candidate = {"text": ..., "subject": "order-gateway", "evidence": [...],
-                 "source_type": "agent", "source_ref": ..., "author": ...,
-                 "team": "trading-ops", "created_at": "2026-11-04 10:00"}
+    Receives
+        candidate = {"text": "order-gateway-2 memory is at 92% right now.",
+                     "subject": "order-gateway",
+                     "evidence": ["metrics/order-gateway/15"],
+                     "source_type": "tool",            # from origin_of
+                     "source_ref": "metrics/order-gateway/15",
+                     "author": "agent-first-line", "team": "trading-ops",
+                     "created_at": "2026-11-04 10:00"}
+    Returns
+        None to store nothing, or a dict with exactly these keys:
+        {"kind":        what sort of knowledge it is; you choose the list (e.g. known_issue, procedure, fact, state),
+         "subject":     usually the candidate's subject,
+         "content":     the text to store (it may differ from the candidate's text),
+         "confidence":  0.0 to 1.0, how much the next shift should trust it,
+         "valid_until": "YYYY-MM-DD HH:MM" after which someone must check it again, or None if it does not go stale}
 
-    Return {"kind", "subject", "content", "confidence", "valid_until"}.
-    As supplied: everything, with full confidence, forever.
+    As supplied: everything, with confidence 1.0, never expiring.
     """
     # Hint: decide in this order: refuse? which kind? which confidence? until when? what content?
     return {"kind": "note", "subject": candidate["subject"] or "general", "content": candidate["text"], "confidence": 1.0, "valid_until": None}
 
 
 def reconcile(new: dict[str, Any], existing: list[dict[str, Any]]) -> dict[str, Any]:
-    """C. What the new note does to the records already stored.
+    """C. Decide what a new note does to the records already stored about the same subject.
 
-    new = what to_memory returned, plus "source_type", "team" and "created_at".
-    existing = active records with the same subject (dicts with the MemoryRecord fields,
-               memory_id, kind, content, source_type, team, valid_until, confidence...).
+    Receives
+        new: what to_memory returned, plus "source_type", "team" and "created_at", e.g.
+            {"kind": "known_issue", "subject": "order-gateway", "content": "CHG-4602 deployed 2.4.1, which fixes the leak of 2.4.0...",
+             "confidence": 0.8, "valid_until": None, "source_type": "tool", "team": "trading-ops", "created_at": "2026-11-04 10:00"}
+        existing: the active records with the same subject, as dicts with the store's fields:
+            memory_id, kind, subject, content, source_type, team, created_at, valid_until, confidence, status.
+    Returns
+        {"op": one of the four below, "target": the memory_id it acts on (None for "add"),
+         "content": the merged text (only for "update")}
 
-    Return {"op": "add" | "ignore" | "update" | "supersede", "target": memory_id or None,
-            "content": the merged content (only for update)}.
-    As supplied: always add, so the memory fills with copies and old lessons stay current.
+        add        store the new note as a new record; the existing ones do not change.
+        ignore     store nothing: `target` already says the same thing.
+        update     replace the content of `target` with `content`: the old text, completed with the new detail.
+        supersede  store the new note as a new record that replaces `target`; `target` stays in the history.
+
+    As supplied: always "add", so the memory fills with copies and old lessons stay current.
     """
     # Hint: candidates first (team, kind, validity), then similarity, then origins.
     return {"op": "add", "target": None}
 
 
 def remember(ctx: RunContext[IncidentDeps], note: str, subject: str, evidence: list[str] | None = None) -> dict[str, Any]:
-    """Save a note to long-term memory."""
+    """Save a note to long-term memory.
+
+    Rewrite this docstring: it is what the model reads. It must tell the model
+    - what is worth saving (a lesson for the next shifts) and what is not (the state of this incident);
+    - what to pass: the note, its subject (a component) and the evidence ids it rests on;
+    - what happens without evidence, and with text copied from a ticket or a log.
+    """
     if ctx.deps.memory is None:
         return {"error": "memory is disabled for this run"}
     evidence = evidence or []

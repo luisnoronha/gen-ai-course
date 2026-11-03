@@ -15,12 +15,12 @@ The problem
 
 Build, in this file
     A. recall(ctx, query): which records come back, in which order, and how each one
-       is presented to the model.
+     is presented to the model.
     B. INSTRUCTIONS: how the agent must treat what memory says.
     C. rank_incidents(description, team, history): "have we seen this before?"
-       Given what the agent sees now, return the past incidents of the team that
-       look most like it (memory/history.yaml), with their cause and fix. The tool
-       similar_incidents calls it; it is already wired.
+     Given what the agent sees now, return the past incidents of the team that
+     look most like it (memory/history.yaml), with their cause and fix. The tool
+     similar_incidents calls it; it is already wired.
 
     recall must:
     - only return records of the agent's own team (ctx.deps.identity["team"]);
@@ -28,35 +28,35 @@ Build, in this file
     - show, for each record, its origin, age and confidence;
     - flag records that contradict each other (same subject, different claims);
     - flag what changed since the record was written: a change to the same
-      component after created_at may make it stale.
+    component after created_at may make it stale.
 
 Watch out
     - The store's search does not know your team or what "expired" means. You decide.
     - A newer record is not always right. A record from a person of the team who
-      checked is worth more than an agent's guess from earlier the same night.
-      But in the end the current state decides: tell the agent what to check.
+    checked is worth more than an agent's guess from earlier the same night.
+    But in the end the current state decides: tell the agent what to check.
     - The model reads the result as text. "MEM-0001 (user, 21 days old, written
-      before CHG-4520)" is more useful than a raw database row.
+    before CHG-4520)" is more useful than a raw database row.
     - Return a few records, not fifty.
     - Similar incidents: the most recent incident on the same component is often a
-      different problem. Compare symptoms, not only the component name. The symptom
-      may show on one component and the cause be in another.
+    different problem. Compare symptoms, not only the component name. The symptom
+    may show on one component and the cause be in another.
 
 Test without a model: check_recall.py (10 tests; tests 8 to 10 are about rank_incidents).
 
 Hints (read only if stuck)
     1. ctx.deps.memory.search(text=query, team=..., limit=...) does the matching;
-       filter valid_until yourself against now = ctx.deps.sim.clock.timestamp(ctx.deps.sim.state.tick).
-       Timestamps are "YYYY-MM-DD HH:MM", so plain string comparison works.
+     filter valid_until yourself against now = ctx.deps.sim.clock.timestamp(ctx.deps.sim.state.tick).
+     Timestamps are "YYYY-MM-DD HH:MM", so plain string comparison works.
     2. Changes since: ctx.deps.tools.recent_changes(record.subject) gives each change
-       with "at"; keep those later than record.created_at.
+     with "at"; keep those later than record.created_at.
     3. Conflicts: group the returned records by subject; if a group has more than one
-       record of the same kind, mark them as conflicting and put the most trusted first.
+     record of the same kind, mark them as conflicting and put the most trusted first.
     4. INSTRUCTIONS: say what memory is for, and what must be read again (metrics,
-       changes) before acting or before reporting a false positive.
+     changes) before acting or before reporting a false positive.
     5. rank_incidents: split texts in words, drop short words, count the words in
-       common with each incident's symptoms (a share, not a raw count). Filter the
-       team first. Return id, date, symptoms, cause and fix of the top 3.
+     common with each incident's symptoms (a share, not a raw count). Filter the
+     team first. Return id, date, symptoms, cause and fix of the top 3.
 """
 
 from __future__ import annotations
@@ -80,10 +80,27 @@ Only report "recovered" when recent metrics, read after any action, show it. Cit
 
 
 def recall(ctx: RunContext[IncidentDeps], query: str) -> dict[str, Any]:
-    """Search long-term memory."""
+    """Search long-term memory.
+
+    A. Rewrite this docstring too: it is what the model reads.
+    Receives
+      query: the text the model searches for, e.g. "order-gateway latency".
+      From ctx: ctx.deps.memory (the store), ctx.deps.identity["team"], the current time
+      (ctx.deps.sim.clock.timestamp(ctx.deps.sim.state.tick)) and ctx.deps.tools.recent_changes(component).
+    Returns
+      {"memories": [...]} plus anything else useful (e.g. how many expired records were left out).
+      A few memories, the most trusted first. Each memory is a dict with at least:
+        "memory_id", "content",
+        its origin, in a field whose name contains "source", e.g. "source": "user (rita.alves)",
+        "age", e.g. "21 days (written 2026-10-14 09:40)",
+        "confidence",
+        the changes made to its component after it was written, with their change ids, if any,
+        the ids of the other returned memories it disagrees with, flagged with the word "conflict", if any.
+    As supplied: everything that matches, from every team, including superseded records, as raw rows.
+    """
     # Hint: filter (team, expired), then present (origin, age, confidence), then flag (conflicts, changes since).
     if ctx.deps.memory is None:
-        return {"error": "memory is disabled for this run"}
+      return {"error": "memory is disabled for this run"}
     records = ctx.deps.memory.search(text=query, include_superseded=True)
     return {"memories": [record.public() for record in records]}
 
@@ -92,9 +109,18 @@ HISTORY = Path(__file__).resolve().parents[1] / "memory" / "history.yaml"
 
 
 def rank_incidents(description: str, team: str, history: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """C. The past incidents most similar to `description`, most similar first (at most 3).
+    """C. Find the past incidents of the team that look most like what the agent sees now.
 
-    history = [{"id", "team", "date", "component", "symptoms", "cause", "fix"}, ...]
+    Receives
+      description: what the agent sees, in words, e.g. "order-gateway latency high, memory rising on one instance";
+      team: the agent's team, e.g. "trading-ops";
+      history: the closed incidents of memory/history.yaml:
+          [{"id": "INC-3920", "team": "trading-ops", "date": "2026-09-14", "component": "order-gateway",
+            "symptoms": "...", "cause": "...", "fix": "..."}, ...]
+    Returns
+      At most 3 incidents from history (the same dicts, so with id, date, cause and fix), the most similar first.
+      An empty list if none looks similar.
+
     As supplied: the incidents on any component named in the description, most recent first.
     """
     # Hint: team first, then similarity of symptoms; the component name is only one word among many.

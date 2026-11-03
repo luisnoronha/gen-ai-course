@@ -60,6 +60,24 @@ from meridian.security import ActionRequest
 
 
 def authorize(request: ActionRequest) -> dict[str, Any]:
-    """Decide, before the executor, whether this action may run. As supplied: everything is allowed."""
+    """Decide, before the executor, whether this action may run.
+
+    Receives
+        request: a meridian.security.ActionRequest, e.g.
+            action="rollback_change", target="CHG-4471", component="reference-db", critical=True,
+            role="on-call", actor="rita.alves", trading_session=True, time="2026-11-04 11:00",
+            confirmation_ref="APR-001", approval_status="approved", approver_role="on-call", approval_matches=True
+        component is None when the target does not exist; approval_status is None when there is no approval.
+    Returns
+        {"decision": "allow" | "deny" | "needs_approval",
+         "reason": a sentence the model reads,
+         "approver_role": "on-call" or "incident-manager" for "needs_approval", else None}
+
+        allow           the executor runs it now.
+        deny            it never runs for this role, whatever approval comes.
+        needs_approval  it runs once `approver_role` approves this action on this target.
+
+    As supplied: everything is allowed.
+    """
     # Hint: start with the cases that are always "deny", then the ones that are always "allow".
     return {"decision": "allow", "reason": "no policy yet", "approver_role": None}

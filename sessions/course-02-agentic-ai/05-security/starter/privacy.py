@@ -48,12 +48,33 @@ MEMBERS = ("NORDBANK", "ATLAS-SEC", "PRAIA-CAP", "ORION-BRK", "VALE-INV")
 
 
 def mask(text: str) -> str:
-    """A. The text with personal data replaced. As supplied: unchanged."""
+    """A. Replace the personal data in a text before it reaches the model.
+
+    Receives
+        text: any text from a log line, a ticket or a memory, e.g.
+            "ack timeout for order O481920 member NORDBANK trader pedro.lima@nordbank.pt account ACC-204517
+             (callback +351 912 345 678)"
+    Returns
+        The same text, with each e-mail address, phone number and account number replaced by a label, e.g.
+            "ack timeout for order O481920 member NORDBANK trader [email] account [account] (callback [phone])"
+
+    As supplied: the text unchanged.
+    """
     # Hint: a list of (compiled regex, label), applied in order.
     return text
 
 
 def check_message(channel: str, text: str) -> str | None:
-    """B. None if the message may be sent, or the reason to block it. As supplied: everything goes."""
+    """B. Check a message before it leaves, and block it if it must not go.
+
+    Receives
+        channel: where the model wants to send it: "members-status", "ops-internal", "email:<address>",
+                 or anything else the model writes;
+        text: the message, as the model wrote it.
+    Returns
+        None to send it, or a string with the reason to block it (the model reads it and can fix the message).
+
+    As supplied: everything goes.
+    """
     # Hint: which channels exist, who reads each one, and what may never be written there.
     return None
