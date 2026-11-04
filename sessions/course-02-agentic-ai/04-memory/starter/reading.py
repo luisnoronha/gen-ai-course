@@ -1,66 +1,18 @@
-"""Exercise 2 — Remember without believing.
+"""Exercise 2 — Completed memory reading.
 
-The problem
-    09:08, the gateway alert fires. Memory says, in a note from three weeks ago:
-    "latency_high between 09:00 and 09:20 is a known false positive (pool
-    warm-up)". The agent reports "false_positive" and stops. But yesterday a
-    change (CHG-4520) removed the warm-up phase. Today the latency is a real leak.
-
-    Another morning, two shift notes disagree. The night run wrote "CHG-4471
-    rolled back, errors gone"; two hours later the on-call engineer wrote "the
-    rollback failed, CHG-4471 is still active". The agent picks the first one.
-
-    Memory is a hint about where to look, not the current state of the systems.
-    What recall returns, and how it presents it, decides whether the agent checks.
-
-Build, in this file
-    A. recall(ctx, query): which records come back, in which order, and how each one
-     is presented to the model.
-    B. INSTRUCTIONS: how the agent must treat what memory says.
-    C. rank_incidents(description, team, history): "have we seen this before?"
-     Given what the agent sees now, return the past incidents of the team that
-     look most like it (memory/history.yaml), with their cause and fix. The tool
-     similar_incidents calls it; it is already wired.
-
-    recall must:
-    - only return records of the agent's own team (ctx.deps.identity["team"]);
-    - not return superseded or expired records as current;
-    - show, for each record, its origin, age and confidence;
-    - flag records that contradict each other (same subject, different claims);
-    - flag what changed since the record was written: a change to the same
-    component after created_at may make it stale.
-
-Watch out
-    - The store's search does not know your team or what "expired" means. You decide.
-    - A newer record is not always right. A record from a person of the team who
-    checked is worth more than an agent's guess from earlier the same night.
-    But in the end the current state decides: tell the agent what to check.
-    - The model reads the result as text. "MEM-0001 (user, 21 days old, written
-    before CHG-4520)" is more useful than a raw database row.
-    - Return a few records, not fifty.
-    - Similar incidents: the most recent incident on the same component is often a
-    different problem. Compare symptoms, not only the component name. The symptom
-    may show on one component and the cause be in another.
-
-Test without a model: check_recall.py (10 tests; tests 8 to 10 are about rank_incidents).
-
-Hints (read only if stuck)
-    1. ctx.deps.memory.search(text=query, team=..., limit=...) does the matching;
-     filter valid_until yourself against now = ctx.deps.sim.clock.timestamp(ctx.deps.sim.state.tick).
-     Timestamps are "YYYY-MM-DD HH:MM", so plain string comparison works.
-    2. Changes since: ctx.deps.tools.recent_changes(record.subject) gives each change
-     with "at"; keep those later than record.created_at.
-    3. Conflicts: group the returned records by subject; if a group has more than one
-     record of the same kind, mark them as conflicting and put the most trusted first.
-    4. INSTRUCTIONS: say what memory is for, and what must be read again (metrics,
-     changes) before acting or before reporting a false positive.
-    5. rank_incidents: split texts in words, drop short words, count the words in
-     common with each incident's symptoms (a share, not a raw count). Filter the
-     team first. Return id, date, symptoms, cause and fix of the top 3.
+- recall: own team only, active and not expired; each record presented with its origin,
+  age and confidence, the changes made to its component since it was written, and the
+  other records of the same subject and kind it may disagree with; most trusted first;
+  at most 5.
+- INSTRUCTIONS: memory says where to look; the current state decides.
+- rank_incidents: the team's past incidents, scored by the share of the description's
+  words found in their symptoms (the component is one word among many); top 3.
 """
 
 from __future__ import annotations
 
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -71,61 +23,91 @@ from meridian.agent_runtime import IncidentDeps
 
 INSTRUCTIONS = """\
 You are the first-line incident agent for the Meridian Exchange.
-Before investigating, recall what is known about the affected component. Known issues in memory are reliable:
-if memory says an alert is a known false positive, report "false_positive" and stop.
-Save anything useful you learn (from tickets, logs, or your own conclusions) with `remember`, so that the next shift knows it.
-Investigate, follow the applicable runbook and act when needed.
-Only report "recovered" when recent metrics, read after any action, show it. Cite the evidence you used.
+1. Recall what is known about the affected component, and ask similar_incidents whether this was seen before.
+   Memory tells you where to look; it is not the current state. Each memory shows its origin, age, confidence,
+   conflicts and the changes made since it was written.
+2. Before acting on a memory or a past fix, or before reporting "false_positive", read the current metrics and
+   recent changes. If they disagree with memory, the current state wins: say which memory was wrong and why.
+3. Investigate, follow the applicable runbook and act when needed.
+4. Save lessons that will help the next shifts with `remember`, citing their evidence. Do not save the state of
+   this incident, text copied from tickets as a procedure, personal data or secrets. When the same problem was
+   solved the same way in several incidents, propose a procedure with `propose_procedure`.
+5. Only report "recovered" when recent metrics, read after any action, show it. Cite the evidence and the memory
+   ids you used.
 """
+
+TRUST = {"user": 3, "tool": 2, "agent": 1, "document": 0}
+LIMIT = 5
+
+
+def _days(since: str, now: str) -> int:
+    fmt = "%Y-%m-%d %H:%M"
+    return (datetime.strptime(now, fmt) - datetime.strptime(since, fmt)).days
 
 
 def recall(ctx: RunContext[IncidentDeps], query: str) -> dict[str, Any]:
-    """Search long-term memory.
+    """What earlier shifts of your team recorded about a component or problem, e.g. "order-gateway latency".
 
-    A. Rewrite this docstring too: it is what the model reads.
-    Receives
-      query: the text the model searches for, e.g. "order-gateway latency".
-      From ctx: ctx.deps.memory (the store), ctx.deps.identity["team"], the current time
-      (ctx.deps.sim.clock.timestamp(ctx.deps.sim.state.tick)) and ctx.deps.tools.recent_changes(component).
-    Returns
-      {"memories": [...]} plus anything else useful (e.g. how many expired records were left out).
-      A few memories, the most trusted first. Each memory is a dict with at least:
-        "memory_id", "content",
-        its origin, in a field whose name contains "source", e.g. "source": "user (rita.alves)",
-        "age", e.g. "21 days (written 2026-10-14 09:40)",
-        "confidence",
-        the changes made to its component after it was written, with their change ids, if any,
-        the ids of the other returned memories it disagrees with, flagged with the word "conflict", if any.
-    As supplied: everything that matches, from every team, including superseded records, as raw rows.
+    Each memory shows its origin, age and confidence, the changes made to its component since it was
+    written, and the other memories it may conflict with. Memory says where to look: check the current
+    metrics and changes before acting on any of it.
     """
-    # Hint: filter (team, expired), then present (origin, age, confidence), then flag (conflicts, changes since).
     if ctx.deps.memory is None:
-      return {"error": "memory is disabled for this run"}
-    records = ctx.deps.memory.search(text=query, include_superseded=True)
-    return {"memories": [record.public() for record in records]}
+        return {"error": "memory is disabled for this run"}
+    now = ctx.deps.sim.clock.timestamp(ctx.deps.sim.state.tick)
+    records = ctx.deps.memory.search(text=query, team=ctx.deps.identity["team"], limit=50)
+    current = [record for record in records if not record.valid_until or record.valid_until >= now]
+    expired = len(records) - len(current)
+    current.sort(key=lambda record: (TRUST.get(record.source_type, 0), record.created_at), reverse=True)
+    current = current[:LIMIT]
+
+    changes: dict[str, list[dict[str, Any]]] = {}
+    for subject in {record.subject for record in current}:
+        changes[subject] = ctx.deps.tools.recent_changes(subject).get("changes", [])
+
+    memories = []
+    for record in current:
+        since = [f"{change['change_id']} at {change['at']}: {change['description']}" for change in changes[record.subject] if change["at"] > record.created_at]
+        rivals = [other.memory_id for other in current if other is not record and other.subject == record.subject and other.kind == record.kind]
+        memories.append(
+            {
+                "memory_id": record.memory_id,
+                "content": record.content,
+                "kind": record.kind,
+                "subject": record.subject,
+                "source": f"{record.source_type} ({record.source_ref})",
+                "age": f"{_days(record.created_at, now)} days (written {record.created_at})",
+                "confidence": record.confidence,
+                "valid_until": record.valid_until,
+                "changed_since": since or None,
+                "conflict_with": rivals or None,
+                "check_before_acting": "Read the current metrics and recent changes; they decide.",
+            }
+        )
+    return {"memories": memories, "expired_not_shown": expired}
 
 
 HISTORY = Path(__file__).resolve().parents[1] / "memory" / "history.yaml"
+WORD = re.compile(r"[a-z0-9][a-z0-9-]*")
+STOP_WORDS = {"the", "and", "after", "on", "in", "of", "at", "a", "an", "to", "with", "since", "one", "all", "every"}
+
+
+def _words(text: str) -> set[str]:
+    return {word for word in WORD.findall(text.lower()) if len(word) > 2 and word not in STOP_WORDS}
 
 
 def rank_incidents(description: str, team: str, history: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """C. Find the past incidents of the team that look most like what the agent sees now.
-
-    Receives
-      description: what the agent sees, in words, e.g. "order-gateway latency high, memory rising on one instance";
-      team: the agent's team, e.g. "trading-ops";
-      history: the closed incidents of memory/history.yaml:
-          [{"id": "INC-3920", "team": "trading-ops", "date": "2026-09-14", "component": "order-gateway",
-            "symptoms": "...", "cause": "...", "fix": "..."}, ...]
-    Returns
-      At most 3 incidents from history (the same dicts, so with id, date, cause and fix), the most similar first.
-      An empty list if none looks similar.
-
-    As supplied: the incidents on any component named in the description, most recent first.
-    """
-    # Hint: team first, then similarity of symptoms; the component name is only one word among many.
-    named = [incident for incident in history if incident["component"] in description]
-    return sorted(named, key=lambda incident: incident["date"], reverse=True)[:3]
+    """The team's past incidents most similar to `description`, by the symptoms; at most 3, most similar first."""
+    wanted = _words(description)
+    scored = []
+    for incident in history:
+        if incident["team"] != team:
+            continue
+        score = len(wanted & _words(incident["symptoms"])) / len(wanted) if wanted else 0.0
+        if score > 0:
+            scored.append((score, incident["date"], incident))
+    scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return [incident for _, _, incident in scored[:3]]
 
 
 def similar_incidents(ctx: RunContext[IncidentDeps], description: str) -> dict[str, Any]:

@@ -1,140 +1,136 @@
-"""Exercise 3 — Shift handover and forgetting.
+"""Exercise 3 — Completed handover, forgetting and procedures.
 
-The problem
-    Day 1, 10:05: order-gateway-2 leaks memory; the agent restarts it. Day 2,
-    10:40: the same alert. The new run starts from nothing: it reads every log
-    again, or worse, it reads yesterday's note "restart order-gateway-2" and
-    restarts the wrong instance (today it is order-gateway-1).
-
-    And a member asks the exchange to delete the phone number of their trader
-    that someone saved in memory last week. The agent answers "done", and the
-    number is still there.
-
-Build, in this file
-    A. after_run(report, deps): the handover. The runner calls it when the agent
-     finishes. Write one shift note: what happened, what was done, what is still
-     open, and what the next shift must check again before trusting it.
-    B. forget(ctx, memory_id, reason): delete a memory on request. Only for your
-     own team. The content goes; a log of the deletion stays (the store does that).
-    C. propose_procedure(ctx, content, subject, incidents): after the same problem in
-     several incidents, the agent may propose a procedure ("when X, do Y"). It is
-     stored as a proposal, not as a procedure: nobody has checked it yet.
-    D. approve(store, proposal_id, approver, now): a person of the team approves the
-     proposal. Only then does it become a procedure the next shifts can follow.
-
-Watch out
-    - A handover is a hint for the next shift, not an order. "Restarted
-    order-gateway-2" is a fact about yesterday; which instance leaks today is in
-    today's metrics.
-    - Running the same incident twice must not leave two handover notes: the
-    second supersedes the first.
-    - The handover expires. A note from last month is not a handover.
-    - The report can contain personal data (a trader's phone in the summary). It
-    must not reach memory.
-    - forget must refuse another team's memory, and say so.
-    - One incident is an anecdote. A proposal needs at least two different incidents.
-    - The agent cannot approve its own proposal. Only the on-call engineer or the
-    incident manager of the same team can.
-    - The approved procedure keeps its history: who approved it, and which proposal it came from.
-
-Test without a model: check_handover.py (11 tests; tests 8 to 11 are about C and D). Then with the model, day 1
-then day 2 with one store, and day 2 again without memory (commands in the README).
-
-Hints (read only if stuck)
-    1. ctx.deps.memory.add(kind="shift_note", subject=..., ..., valid_until=...) and
-     the incident id in the content. Use the subject from the incident's alert
-     (deps.sim.scenario.incident["alert"] is "rule/component").
-    2. Supersede: search the store for an active shift note of the same incident
-     first; pass supersedes=<its id>.
-    3. forget: ctx.deps.memory.get(memory_id) raises KeyError for an unknown id;
-     compare its team with ctx.deps.identity["team"]; then ctx.deps.memory.delete(...).
-    4. propose_procedure: count the distinct ids that start with "INC-". Store with
-     kind="proposal", source_type="agent", a medium confidence and a validity of
-     a couple of weeks: a proposal nobody looks at should not stay forever.
-    5. approve: approver is an identity ({"role", "name", "team"}). Check the role and
-     the team, then store.add(kind="procedure", source_type="user", ...,
-     supersedes=proposal_id): the proposal stays in the history, marked superseded.
+- after_run: one shift note per incident (a second run supersedes the first), with what
+  happened, what was done and what the next shift must check again; personal data
+  masked; valid for 3 days.
+- forget: own team only; the store deletes the content and logs the deletion.
+- propose_procedure: needs at least two different incidents; stored as a proposal from
+  the agent, medium confidence, valid for 14 days, waiting for a person.
+- approve: only the on-call engineer or the incident manager of the proposal's team;
+  creates a procedure (origin user, author the approver) that supersedes the proposal.
 """
 
 from __future__ import annotations
 
+import re
+from datetime import datetime, timedelta
 from typing import Any
 
 from pydantic_ai import RunContext
 
 from meridian.agent_runtime import IncidentDeps
 
+PERSONAL = re.compile(r"\+?\d[\d ]{7,}\d|[\w.+-]+@[\w-]+\.[\w.]+")
+HANDOVER_DAYS = 3
+PROPOSAL_DAYS = 14
+APPROVER_ROLES = ("on-call", "incident-manager")
+
+
+def _clean(text: str | None) -> str:
+    return PERSONAL.sub("[personal data removed]", text or "")
+
+
+def _later(now: str, days: int) -> str:
+    return (datetime.strptime(now, "%Y-%m-%d %H:%M") + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+
 
 def after_run(report: Any, deps: IncidentDeps) -> None:
-    """A. Write the shift handover when a run ends. The runner calls it, not the model. Returns nothing.
-
-    Receives
-      report: the agent's final report, with incident_id, status, evidence, actions_taken, root_cause and summary;
-      deps: deps.memory (the store, or None when memory is off), deps.identity (team, name),
-            deps.sim (the time and the incident: deps.sim.scenario.incident).
-    Writes
-      One record in deps.memory:
-      - kind "shift_note", subject the component of the incident;
-      - content naming the incident, what happened, what was done, what is still open,
-        and what the next shift must check again before trusting it;
-      - a valid_until;
-      - no personal data, even when the report has some.
-
-    As supplied: writes nothing.
-    """
-    # Hint: report has incident_id, status, actions_taken, root_cause and summary.
+    """Write one shift note per incident when a run ends. Called by the runner."""
+    if deps.memory is None or report is None:
+        return
+    now = deps.sim.clock.timestamp(deps.sim.state.tick)
+    component = deps.sim.scenario.incident.get("alert", "general").split("/")[-1]
+    team = deps.identity["team"]
+    content = (
+        f"Handover {report.incident_id} ({report.status}). Cause: {_clean(report.root_cause or report.summary)} "
+        f"Actions: {_clean('; '.join(report.actions_taken)) or 'none'}. "
+        "Next shift: this describes yesterday. Read current metrics and recent changes before reusing it; "
+        "the affected instance may be a different one."
+    )
+    previous = [record for record in deps.memory.search(kind="shift_note", team=team, limit=100) if report.incident_id in record.content]
+    deps.memory.add(
+        kind="shift_note",
+        subject=component,
+        content=content,
+        source_type="agent",
+        source_ref=report.incident_id,
+        author=deps.identity["name"],
+        team=team,
+        created_at=now,
+        valid_until=_later(now, HANDOVER_DAYS),
+        confidence=0.6,
+        supersedes=previous[0].memory_id if previous else None,
+    )
 
 
 def forget(ctx: RunContext[IncidentDeps], memory_id: str, reason: str) -> dict[str, Any]:
-    """B. Write the docstring the model will read: when to call it.
+    """Delete a memory of your team when someone asks for it (personal data, a wrong note). Give the reason.
 
-    Receives
-      memory_id: the record to delete, e.g. "MEM-0042"; reason: why, kept in the deletion log.
-    Returns
-      a dict the model reads, e.g. {"deleted": True, "memory_id": "MEM-0042"}
-      or {"deleted": False, "detail": "MEM-0042 belongs to settlement-ops."}.
-    As supplied: refuses everything.
+    The content is removed; only the id, the time, who deleted it and the reason are kept in the deletion log.
+    Memories of other teams cannot be deleted from here.
     """
-    # Hint: check it exists, check the team, delete with deleted_at, deleted_by and reason.
-    return {"error": "forget is not available yet"}
+    if ctx.deps.memory is None:
+        return {"error": "memory is disabled for this run"}
+    try:
+        record = ctx.deps.memory.get(memory_id)
+    except KeyError:
+        return {"deleted": False, "detail": f"No memory {memory_id}."}
+    if record.team != ctx.deps.identity["team"]:
+        return {"deleted": False, "detail": f"{memory_id} belongs to team {record.team}. Ask that team to delete it."}
+    now = ctx.deps.sim.clock.timestamp(ctx.deps.sim.state.tick)
+    ctx.deps.memory.delete(memory_id, deleted_at=now, deleted_by=ctx.deps.identity["name"], reason=reason)
+    return {"deleted": True, "memory_id": memory_id, "reason": reason}
 
 
 def propose_procedure(ctx: RunContext[IncidentDeps], content: str, subject: str, incidents: list[str]) -> dict[str, Any]:
-    """Write the docstring the model will read: when to propose a procedure, and what happens next.
+    """Propose a procedure after the same problem was solved the same way in at least two incidents.
 
-    Receives
-      content: the procedure in words, e.g. "When order-gateway latency is high and one instance is above 90% memory,
-               restart only that instance.";
-      subject: the component; incidents: the incidents where the problem was seen, e.g. ["INC-4110", "INC-4121"].
-    Returns
-      a dict the model reads, e.g. {"proposed": "MEM-0007", "detail": "waiting for approval"}
-      or {"proposed": False, "detail": why}.
-    As supplied: stored at once as a procedure, with full confidence.
+    content: the procedure in words, "When X, do Y." subject: the component. incidents: the incident ids it rests on.
+    It is stored as a proposal: nobody follows it until the on-call engineer or the incident manager approves it.
     """
-    # Hint: refuse with fewer than two incidents; store as a proposal.
     if ctx.deps.memory is None:
-      return {"error": "memory is disabled for this run"}
+        return {"error": "memory is disabled for this run"}
+    distinct = sorted({incident for incident in incidents if incident.startswith("INC-")})
+    if len(distinct) < 2:
+        return {"proposed": False, "detail": "A procedure needs at least two different incidents. One incident is an anecdote: save it with remember."}
     now = ctx.deps.sim.clock.timestamp(ctx.deps.sim.state.tick)
     record = ctx.deps.memory.add(
-      kind="procedure", subject=subject, content=content, source_type="agent", source_ref=", ".join(incidents),
-      author=ctx.deps.identity["name"], team=ctx.deps.identity["team"], created_at=now, confidence=1.0,
+        kind="proposal",
+        subject=subject,
+        content=_clean(content),
+        source_type="agent",
+        source_ref=", ".join(distinct),
+        author=ctx.deps.identity["name"],
+        team=ctx.deps.identity["team"],
+        created_at=now,
+        valid_until=_later(now, PROPOSAL_DAYS),
+        confidence=0.5,
     )
-    return {"saved": record.memory_id}
+    return {"proposed": record.memory_id, "detail": "Stored as a proposal. The on-call engineer or the incident manager must approve it before anyone follows it."}
 
 
 def approve(store: Any, proposal_id: str, approver: dict[str, Any], now: str) -> dict[str, Any]:
-    """D. A person approves a proposal, which becomes a procedure. People call it (or the check script), not the model.
-
-    Receives
-      store: the memory store (MemoryStore);
-      proposal_id: the record to approve, e.g. "MEM-0007";
-      approver: the identity of the person, e.g. {"role": "on-call", "name": "rita.alves", "team": "trading-ops", ...};
-      now: the time, "YYYY-MM-DD HH:MM".
-    Returns
-      {"approved": True, "memory_id": the id of the new procedure}
-      or {"approved": False, "detail": why}.
-
-    As supplied: refuses everything.
-    """
-    # Hint: the proposal exists and is a proposal; the role can approve; same team; then add the procedure.
-    return {"approved": False, "detail": "approve is not available yet"}
+    """A person approves a proposal, which becomes a procedure. Called by people, not by the model."""
+    try:
+        proposal = store.get(proposal_id)
+    except KeyError:
+        return {"approved": False, "detail": f"No memory {proposal_id}."}
+    if proposal.kind != "proposal" or proposal.status != "active":
+        return {"approved": False, "detail": f"{proposal_id} is not an active proposal."}
+    if approver.get("role") not in APPROVER_ROLES:
+        return {"approved": False, "detail": f"Role {approver.get('role')} cannot approve procedures."}
+    if approver.get("team") != proposal.team:
+        return {"approved": False, "detail": f"{proposal_id} belongs to team {proposal.team}."}
+    record = store.add(
+        kind="procedure",
+        subject=proposal.subject,
+        content=proposal.content,
+        source_type="user",
+        source_ref=f"approved {proposal_id} ({proposal.source_ref})",
+        author=approver["name"],
+        team=proposal.team,
+        created_at=now,
+        confidence=0.9,
+        supersedes=proposal_id,
+    )
+    return {"approved": True, "memory_id": record.memory_id}

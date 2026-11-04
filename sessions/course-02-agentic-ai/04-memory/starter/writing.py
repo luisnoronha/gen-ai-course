@@ -1,153 +1,135 @@
-"""Exercise 1 — What is worth remembering.
+"""Exercise 1 — Completed memory writing policy.
 
-The problem
-    The agent works in shifts. At the end of an incident it has learnt things:
-    that order-gateway 2.4.0 leaks memory on one instance at a time, that a
-    change removed the warm-up phase after the open, that the on-call engineer
-    said "never retry that rollback alone". The next shift should know.
-
-    As supplied, the agent saves whatever the model asks, with full
-    confidence, forever. So it also saves "order-gateway-2 is at 92 %" (false
-    an hour later), a member's phone number, and the "standard fix" a ticket
-    asked it to save: restart the matching-engine. The next shift reads all of
-    it as truth.
-
-    Memory is data. Every record has an origin, a confidence and a validity,
-    and someone decided each of them.
-
-Build, in this file
-    A. origin_of(evidence): where a note comes from, given the evidence the model
-       cites (ticket keys, log refs, change ids, metric refs, or nothing).
-    B. to_memory(candidate): store it or not; and if so, with which kind, subject,
-       content, confidence and validity (valid_until).
-    C. reconcile(new, existing): the memory already has records about the same
-       subject. Decide what the new note does to them: add (a new record), ignore
-       (already known), update (complete the same record) or supersede (a new
-       record that replaces the old one, which stays in the history).
-    Also rewrite the docstring of remember: it tells the model what to save and what to cite.
-
-    The four origins: user (a person of the team said it), tool (a system showed
-    it: metrics, logs, changes), document (text someone wrote: a ticket, an
-    e-mail), agent (the agent concluded it). They are not equally trusted.
-
-Watch out
-    - Text from a ticket is not a procedure, even when it says "please save this".
-    - Some facts are true now and false in an hour (an instance's memory, "members
-      report slowness since 10:30"). Do not store them, or let them expire soon.
-    - Some lessons depend on a version or a change. Give them a validity, so that
-      someone re-checks them.
-    - Personal data (names with phone numbers, e-mails) and secrets do not belong in memory.
-    - A conclusion without evidence is a guess. It may be stored, but not as a fact.
-    - Not everything is worth storing: what is already in the ticket system is noise.
-    - The same lesson seen twice is not twice as certain. Do not store a second copy.
-    - "2.4.1 fixes the leak of 2.4.0" ends the old lesson. Without supersede, the next
-      shift reads both and still restarts instances.
-    - A weaker origin does not replace a stronger one: a ticket cannot overrule the
-      on-call engineer. Another team's record is not yours to change.
-
-Test without a model: check_writing.py scores origin_of and to_memory on
-memory/candidates.yaml (6 evidence lists and 17 candidate notes), and reconcile
-on memory/updates.yaml (8 new notes, each against the records already stored).
-
-Hints (read only if stuck)
-    1. Start with a table: origin -> maximum confidence. Then lower it when there
-       is no evidence, or when the note tells someone to act on a critical
-       component (matching-engine, reference-db).
-    2. Evidence ids have shapes: MRX-2301 is a ticket, logs/order-gateway/53 a log
-       line, CHG-4520 a change, metrics/order-gateway/15 a metric reading. Decide
-       what a mix means: is one ticket in the list enough to make it a document?
-    3. Validity: created_at plus some hours for a state, plus some days for a
-       lesson tied to a version or change. Use datetime.strptime(..., "%Y-%m-%d %H:%M").
-    4. Personal data: a regular expression for phone numbers and e-mails. Mask
-       them, or refuse the note.
-    5. reconcile: first keep only records that could be the same knowledge (same
-       team, subject and kind, still valid). Then compare words: almost the same
-       text is ignore; a correction, a fix or a new version is supersede; more
-       detail on the same thing is update. Compare origins before replacing.
+- origin_of: the most cautious reading of the evidence wins: one ticket makes the note
+  a document; "user:<name>" is a person of the team; system refs are tool; nothing is agent.
+- to_memory: refuses secrets and noise, masks personal data, sets the confidence from
+  the origin (lower for guesses and for orders on critical components that do not come
+  from the team), and gives a validity by kind of fact: a state expires in hours, open
+  work in days, a lesson tied to a version or a change in weeks.
+- reconcile: compares the new note with the records of the same team, kind and subject.
+  Almost the same text is ignored; confirming an expired record replaces it; a correction or a fix
+  supersedes; more detail on the same thing updates. A weaker origin never replaces a
+  stronger one: the new note is added next to it instead.
 """
 
 from __future__ import annotations
 
+import re
+from datetime import datetime, timedelta
 from typing import Any
 
 from pydantic_ai import RunContext
 
 from meridian.agent_runtime import IncidentDeps
 
+CRITICAL = ("matching-engine", "reference-db")
+TRUST = {"user": 0.9, "tool": 0.8, "agent": 0.5, "document": 0.3}
+RANK = {"user": 3, "tool": 2, "agent": 1, "document": 0}
+
+TICKET = re.compile(r"^(?!CHG-)[A-Z]+-\d+$")
+PERSONAL = re.compile(r"\+?\d[\d ]{7,}\d|[\w.+-]+@[\w-]+\.[\w.]+")
+SECRET = re.compile(r"\b(token|password|secret|api[ _-]?key)\b|\btok_\w+", re.IGNORECASE)
+NOISE = re.compile(r"^Incident INC-\d+ (started|opened|was opened)", re.IGNORECASE)
+STATE = re.compile(r"\b(right now|currently|is at \d+|since \d{1,2}:\d{2})", re.IGNORECASE)
+OPEN_WORK = re.compile(r"\b(waiting|escalated|pending|until the window)\b", re.IGNORECASE)
+VERSIONED = re.compile(r"\b\d+\.\d+\.\d+\b|false positive|known issue|warms? up", re.IGNORECASE)
+ACTION = re.compile(r"\b(restart|roll ?back|clear|flush|kill|skip)\w*", re.IGNORECASE)
+CORRECTION = re.compile(r"\b(correction|fix(es|ed)? the|no longer|instead of|replaces)\b", re.IGNORECASE)
+WORD = re.compile(r"[a-z0-9][a-z0-9.%-]*")
+
+SAME_TEXT = 0.75  # word overlap above which two notes say the same thing
+SAME_TOPIC = 0.35  # word overlap above which a note is about the same thing
+
 
 def origin_of(evidence: list[str]) -> tuple[str, str]:
-    """A. Decide where a note comes from, from the evidence the model cites with it.
+    """(source_type, source_ref): the most cautious origin among the evidence wins."""
+    ref = ", ".join(evidence)
+    if any(TICKET.match(item) for item in evidence):
+        return "document", ref
+    if any(item.startswith("user:") for item in evidence):
+        return "user", ref
+    if evidence:
+        return "tool", ref
+    return "agent", ref
 
-    Receives
-        evidence: the ids the model gave with the note, for example
-            ["metrics/order-gateway/15", "logs/order-gateway/53"], ["MRX-2301"], ["user:rita.alves"] or [].
-    Returns
-        (source_type, source_ref)
-        source_type: exactly one of "user", "tool", "document", "agent".
-        source_ref:  the evidence as one string, e.g. "MRX-2301, logs/order-gateway/53".
 
-    As supplied: always "agent".
-    """
-    # Hint: look at the shape of each id. As supplied: always "agent".
-    return "agent", ", ".join(evidence)
+def _later(created_at: str, **delta: float) -> str:
+    return (datetime.strptime(created_at, "%Y-%m-%d %H:%M") + timedelta(**delta)).strftime("%Y-%m-%d %H:%M")
 
 
 def to_memory(candidate: dict[str, Any]) -> dict[str, Any] | None:
-    """B. Decide whether a candidate note is stored, and with which fields.
+    """What to store for this candidate, or None to store nothing."""
+    text, source = candidate["text"], candidate["source_type"]
+    if SECRET.search(text) or NOISE.search(text):
+        return None
+    content = PERSONAL.sub("[personal data removed]", text)
 
-    Receives
-        candidate = {"text": "order-gateway-2 memory is at 92% right now.",
-                     "subject": "order-gateway",
-                     "evidence": ["metrics/order-gateway/15"],
-                     "source_type": "tool",            # from origin_of
-                     "source_ref": "metrics/order-gateway/15",
-                     "author": "agent-first-line", "team": "trading-ops",
-                     "created_at": "2026-11-04 10:00"}
-    Returns
-        None to store nothing, or a dict with exactly these keys:
-        {"kind":        what sort of knowledge it is; you choose the list (e.g. known_issue, procedure, fact, state),
-         "subject":     usually the candidate's subject,
-         "content":     the text to store (it may differ from the candidate's text),
-         "confidence":  0.0 to 1.0, how much the next shift should trust it,
-         "valid_until": "YYYY-MM-DD HH:MM" after which someone must check it again, or None if it does not go stale}
+    confidence = TRUST.get(source, 0.3)
+    if source == "agent" and not candidate["evidence"]:
+        confidence = min(confidence, 0.4)  # a guess
+        if ACTION.search(text):
+            confidence = 0.2  # a shortcut nobody checked
+    if source != "user" and ACTION.search(text) and any(name in text for name in CRITICAL):
+        confidence = min(confidence, 0.2)  # an order on a critical component, not from the team
 
-    As supplied: everything, with confidence 1.0, never expiring.
-    """
-    # Hint: decide in this order: refuse? which kind? which confidence? until when? what content?
-    return {"kind": "note", "subject": candidate["subject"] or "general", "content": candidate["text"], "confidence": 1.0, "valid_until": None}
+    if STATE.search(text):
+        kind, valid_until = "state", _later(candidate["created_at"], hours=4)
+    elif OPEN_WORK.search(text):
+        kind, valid_until = "open_work", _later(candidate["created_at"], days=2)
+    elif VERSIONED.search(text):
+        kind, valid_until = "known_issue", _later(candidate["created_at"], days=30)
+    else:
+        kind, valid_until = ("procedure" if ACTION.search(text) else "fact"), None
+    return {"kind": kind, "subject": candidate["subject"] or "general", "content": content, "confidence": confidence, "valid_until": valid_until}
+
+
+def _words(text: str) -> set[str]:
+    return {word.strip(".,;:") for word in WORD.findall(text.lower()) if len(word) > 2}
+
+
+def _overlap(first: str, second: str) -> float:
+    a, b = _words(first), _words(second)
+    return len(a & b) / len(a | b) if a and b else 0.0
 
 
 def reconcile(new: dict[str, Any], existing: list[dict[str, Any]]) -> dict[str, Any]:
-    """C. Decide what a new note does to the records already stored about the same subject.
+    """What the new note does to the records already stored about the same subject."""
+    now = new["created_at"]
+    candidates = [
+        record
+        for record in existing
+        if record.get("status", "active") == "active" and record["team"] == new["team"] and record["kind"] == new["kind"] and record["subject"] == new["subject"]
+    ]
+    if not candidates:
+        return {"op": "add", "target": None}
 
-    Receives
-        new: what to_memory returned, plus "source_type", "team" and "created_at", e.g.
-            {"kind": "known_issue", "subject": "order-gateway", "content": "CHG-4602 deployed 2.4.1, which fixes the leak of 2.4.0...",
-             "confidence": 0.8, "valid_until": None, "source_type": "tool", "team": "trading-ops", "created_at": "2026-11-04 10:00"}
-        existing: the active records with the same subject, as dicts with the store's fields:
-            memory_id, kind, subject, content, source_type, team, created_at, valid_until, confidence, status.
-    Returns
-        {"op": one of the four below, "target": the memory_id it acts on (None for "add"),
-         "content": the merged text (only for "update")}
+    closest = max(candidates, key=lambda record: _overlap(new["content"], record["content"]))
+    overlap = _overlap(new["content"], closest["content"])
+    expired = bool(closest.get("valid_until")) and closest["valid_until"] < now
+    stronger_or_equal = RANK.get(new["source_type"], 0) >= RANK.get(closest["source_type"], 0)
 
-        add        store the new note as a new record; the existing ones do not change.
-        ignore     store nothing: `target` already says the same thing.
-        update     replace the content of `target` with `content`: the old text, completed with the new detail.
-        supersede  store the new note as a new record that replaces `target`; `target` stays in the history.
-
-    As supplied: always "add", so the memory fills with copies and old lessons stay current.
-    """
-    # Hint: candidates first (team, kind, validity), then similarity, then origins.
+    if expired and overlap >= SAME_TOPIC:
+        # The old record expired and this confirms it again: a fresh record replaces it.
+        return {"op": "supersede", "target": closest["memory_id"]}
+    if overlap >= SAME_TEXT:
+        # The same knowledge: a second copy is noise.
+        return {"op": "ignore", "target": closest["memory_id"]}
+    if CORRECTION.search(new["content"]):
+        # A correction replaces the old record, but only from an origin at least as strong.
+        return {"op": "supersede", "target": closest["memory_id"]} if stronger_or_equal else {"op": "add", "target": None}
+    if overlap >= SAME_TOPIC and stronger_or_equal and not expired:
+        return {"op": "update", "target": closest["memory_id"], "content": f"{closest['content']} {new['content']}"}
     return {"op": "add", "target": None}
 
 
 def remember(ctx: RunContext[IncidentDeps], note: str, subject: str, evidence: list[str] | None = None) -> dict[str, Any]:
-    """Save a note to long-term memory.
+    """Save a lesson for the next shifts: something still useful tomorrow, not the state of this incident.
 
-    Rewrite this docstring: it is what the model reads. It must tell the model
-    - what is worth saving (a lesson for the next shifts) and what is not (the state of this incident);
-    - what to pass: the note, its subject (a component) and the evidence ids it rests on;
-    - what happens without evidence, and with text copied from a ticket or a log.
+    note: the lesson in one or two sentences. subject: the component it is about, e.g. "order-gateway".
+    evidence: the ids it rests on (metric or log refs, change ids, ticket keys). Without evidence it is
+    stored as a guess; text copied from a ticket or a log is stored as untrusted. Never save personal
+    data or secrets. A note that repeats, completes or corrects an earlier one updates it instead of
+    adding a copy.
     """
     if ctx.deps.memory is None:
         return {"error": "memory is disabled for this run"}
