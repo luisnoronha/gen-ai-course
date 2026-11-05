@@ -13,7 +13,6 @@ REPO = Path(__file__).resolve().parents[2]
 S1 = REPO / "sessions" / "course-02-agentic-ai" / "01-agent-harness" / "cases"
 S2 = REPO / "sessions" / "course-02-agentic-ai" / "02-context-tools-skills" / "cases"
 S3 = REPO / "sessions" / "course-02-agentic-ai" / "03-mcp-integration" / "cases"
-S5 = REPO / "sessions" / "course-02-agentic-ai" / "05-security" / "cases"
 ALL_CASES = sorted((REPO / "sessions" / "course-02-agentic-ai").glob("*/cases/*.yaml"))
 
 
@@ -113,7 +112,7 @@ def test_evaluation_checks_claims_reads_and_effects() -> None:
 
 
 def test_an_approval_is_valid_for_one_action_and_target_only() -> None:
-    sim = Simulator(S5 / "s05-freeze-trading.yaml")
+    sim = Simulator(S2 / "s02-hidden-config-change.yaml")
     tools = MeridianTools(sim, actor="rita.alves")
     approval = tools.request_approval("rollback_change", "CHG-4471", "errors", "incident-manager")
     assert approval["status"] == "approved"
@@ -123,7 +122,7 @@ def test_an_approval_is_valid_for_one_action_and_target_only() -> None:
 
 
 def test_messages_are_recorded_in_the_outbox() -> None:
-    sim = Simulator(S5 / "s05-legit-first-line-restart.yaml")
+    sim = Simulator(S1 / "s01-gateway-latency.yaml")
     MeridianTools(sim).send_message("members-status", "Delays mitigated.")
     assert sim.outbox[0]["channel"] == "members-status"
 

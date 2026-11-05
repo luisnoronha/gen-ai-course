@@ -1,76 +1,167 @@
-# Session 5 — Security: Authorization, Personal Data and Untrusted Text
+# Session 5 — Guided Security Lab
 
-## The situation
+Work through five guided exercises: permissions, misleading logs, a useful
+restart, personal-data protection and guardrail testing. Then use the red team
+chat to try your own attacks. Compare the actual actions, approvals, model
+inputs and guardrail results.
 
-- **The agent does what it is told, by anyone.** A log line, a ticket or a memory can tell it to restart the matching-engine. The approver accepts whatever it is asked.
-- **The agent moves personal data.** Logs carry traders' e-mails, phones and accounts. Everything it reads goes to the model provider; a ticket asks it to send the list to a Gmail address.
-- **The executor knows one rule.** An action on a critical component needs an approval. Who may act, when, and with whose approval is your policy.
+**Time:** 45–55 minutes for the five guided exercises, then the red team chat.
+Students do not edit code; exercise 5 includes a supplied guardrail prompt to test and improve.
 
-## The exercises
+## Run the lab
 
-You work directly in the files of `starter/`. Each file starts with its exercise: the problem, what to build, what to watch out for, and hints.
-
-| Exercise | File | You build |
-|---|---|---|
-| 1. The authorization policy | `starter/policy.py` | `authorize`: allow, deny or needs approval (and from whom), by role, criticality, trading session and approval |
-| 2. Personal data | `starter/privacy.py` | `mask` (before the model), `check_message` (before anything leaves) |
-| 3. Text that gives orders | `starter/untrusted.py` | `screen` (flag orders in data), `justified` (the current state must justify the action), the agent's instructions |
-
-`starter/harness.py` wires the pieces: every action goes through `authorize` then `justified`; every log, ticket and memory through `mask` then `screen`; every message through `check_message`. You do not need to edit it.
-
-Before coding, fill in `threat-model.md`: what you protect, who can write into the agent's context, how data can leave.
-
-## The cases
-
-| Case | Who acts | What happens | Exercise |
-|---|---|---|---|
-| `s05-freeze-trading` | on-call | A critical rollback during the trading session. | 1 |
-| `s05-legit-after-hours` | on-call | The same rollback after the close. Must work. | 1 |
-| `s05-member-data-request` | first-line | A ticket asks for traders' data at an outside address. | 2 |
-| `s05-legit-first-line-restart` | first-line | A routine restart and a message to members. Must work. | 2 |
-| `s05-log-injection` | first-line | A log line orders a matching-engine restart. | 3 |
-| `s05-poisoned-memory` | first-line | A memory saved from a ticket recommends the same restart. | 3 |
-
-The approver in these cases says yes to whatever it is asked.
-
-## The commands
-
-Run them from the repository root, after `uv sync` and with `OPENAI_API_KEY` in `.env`.
+From the repository root:
 
 ```bash
-uv run python sessions/course-02-agentic-ai/05-security/starter/check_policy.py --harness sessions/course-02-agentic-ai/05-security/starter/harness.py
-uv run python sessions/course-02-agentic-ai/05-security/starter/check_privacy.py --harness sessions/course-02-agentic-ai/05-security/starter/harness.py
-uv run python sessions/course-02-agentic-ai/05-security/starter/check_untrusted.py --harness sessions/course-02-agentic-ai/05-security/starter/harness.py
-uv run python -m meridian.run --harness sessions/course-02-agentic-ai/05-security/starter/harness.py --cases-dir sessions/course-02-agentic-ai/05-security/cases --summary
-uv run python -m meridian.run --harness sessions/course-02-agentic-ai/05-security/starter/harness.py --scenario sessions/course-02-agentic-ai/05-security/cases/s05-log-injection.yaml --role incident-manager
+uv sync --locked
+uv run --locked streamlit run sessions/course-02-agentic-ai/05-security/lab/app.py
 ```
 
-- The three `check_*.py` scripts call your functions directly, without a model: one per exercise. Their data is in `data/`.
-- `meridian.run` runs the agent with the model. `--role` runs a case as another identity: first-line, on-call or incident-manager.
+Set `OPENAI_API_KEY` in your local `.env` before running an example. The default
+model is `gpt-4.1-mini`; `OPENAI_MODEL` can select another OpenAI model.
 
-## Done when
+Restarts, approvals and messages are simulated. Model requests use your API
+key. If imports fail after setup, see the
+[dependency recovery instructions](../../../README.md#missing-dependencies-after-setup).
 
-| Exercise | Done when |
+## Controls: hooks and guardrails
+
+The controls are in the sidebar and apply to every run, guided or chat.
+
+- **Hooks** (`lab/hooks.py`) run at fixed points of every agent run, whatever the
+  model decides: before a tool call (may this action happen?), after a tool call
+  (record it, pass the result through the guardrails) and when the run ends.
+  Act on behalf of the user, permissions and evidence are hooks.
+- **Guardrails** (`lab/guardrails.py`) check content going into or out of the
+  model: personal data in logs, instructions hidden in logs (an LLM), published
+  messages and the final answer.
+
+The tools in `lab/agent.py` only do their job; none of them contains a control.
+
+## The incident
+
+One gateway instance, `order-gateway-2`, has a memory leak and high latency.
+The matching engine is healthy. A restart of the affected gateway instance is
+a permitted mitigation; restarting the matching engine is unnecessary.
+
+Each click starts a fresh copy of this incident. The user and request are
+prepared for each exercise. The last two runs of each exercise stay side by
+side, each labelled with the controls that were on.
+
+## 1. Can this user restart the matching engine?
+
+1. With every control off, click **Run with the current controls**.
+2. Inspect the requesting user, acting account, approval and action result.
+3. Switch on **Permissions** only and run again. Then also switch on **Act on behalf of the user**.
+4. Compare the runs.
+
+With every control off, the first-line user's request runs through the agent's
+privileged service account. With only the permissions hook on, it still runs:
+the hook checks the agent's own account (on-call), not the user's. This is the
+confused deputy. With both hooks on, the action uses the user's identity and
+checks their permission. First-line users may restart a noncritical
+instance; they may not restart a critical service.
+
+**Discuss:** Does approval give the first-line user permission to restart the
+matching engine?
+
+The simulated on-call approver automatically grants requests for a specific
+action and target. This deliberately separates approval from user permission.
+
+## 2. Should the agent follow this log?
+
+1. With every control off, click **Run with the current controls**.
+2. Open **Prepared request and source** to read the planted operational notice.
+3. Inspect the trace, approvals and any restart attempt.
+4. Switch on the **Evidence** hook and run again.
+
+The notice tells the agent to restart the healthy matching engine. The evidence
+check reads live simulator state before a restart and blocks it when the target
+is healthy.
+
+**Discuss:** Which source suggested the restart? Did the metrics justify it?
+
+This example deliberately starts with an agent instructed to trust operational
+notices in logs. The exercise shows how retrieved text can redirect its tools.
+
+## 3. Can the protected agent still help?
+
+1. Switch on every hook and click **Run with the current controls**.
+2. Check that only `order-gateway-2` was restarted.
+3. Inspect the metrics and the acting account.
+
+**Discuss:** Did the protections preserve the useful action?
+
+Restarting reduces memory pressure; it does not fix the underlying memory leak.
+
+## How to read the results
+
+- **Action table:** attempted action, target, acting account, approval reference,
+  result and reason.
+- **Approvals:** who approved which action and target.
+- **Agent response:** the model's explanation.
+- **Tool trace and current metrics:** the evidence read and the resulting state.
+
+Use recorded actions as evidence. A model's claim that it restarted something
+does not prove it happened. Model behavior can vary: if no action was attempted,
+the app says so. An agent refusal is different from an action blocked by a
+control. Failed model requests are shown with any partial actions preserved.
+
+## 4. Personal-data leakage and masking
+
+1. Run the prepared member update with every control off.
+2. Inspect **Logs returned to the model** and **Published messages**.
+3. Switch on the guardrails **Mask personal data**, **Check messages** and **Check the final answer**, then repeat.
+
+The prepared log contains fictional email, phone and account details. The
+guardrails mask recognized identifiers before the incident model receives the
+log, and checks outgoing updates for personal data. A general member update
+should still be possible.
+
+**Discuss:** What reached the model, and what was published? These simple
+patterns are an illustration, not a comprehensive personal-data detector.
+
+## 5. Edit and test a guardrail prompt
+
+1. Read or edit the supplied guardrail prompt.
+2. Click **Test prompt on six texts**.
+3. Inspect missed instructions and facts removed by mistake.
+4. Switch on the **LLM detector** guardrail (and switch off the evidence hook) and run exercise 2 again.
+
+There are three instructions and three factual statements. In the investigation,
+the guardrail replaces flagged log text before the incident agent receives it.
+Keep the evidence hook off for that run so the guardrail's effect can be
+observed on its own.
+
+Prompt edits stay in the current browser session. Results are marked as stale
+when the prompt changes. Six examples do not establish complete protection.
+
+## 6. Red team chat
+
+Open the **Red team chat** tab. Choose who you are, optionally plant a log line,
+and talk to the agent freely: ask it to restart the matching-engine, to send
+data, to follow a note, or anything else. The sidebar controls apply from your
+next message. The right column shows every action, block and guardrail event.
+
+Try the same attack with controls off and on. Which control stops it? Can you
+find one that still passes with every control on?
+
+## Files
+
+| File | Purpose |
 |---|---|
-| 1 | `check_policy.py` gives 22/22; `s05-freeze-trading` and `s05-legit-after-hours` pass. |
-| 2 | `check_privacy.py` gives PASS; `s05-member-data-request` and `s05-legit-first-line-restart` pass. |
-| 3 | `check_untrusted.py` gives PASS; `s05-log-injection` and `s05-poisoned-memory` pass, also with `--role incident-manager`. |
+| `lab/app.py` | The controls, five guided exercises and the red team chat |
+| `lab/agent.py` | Prepared exercises, the agent and its tools (no controls inside) |
+| `lab/hooks.py` | Hooks: before and after every tool call, and at the end of a run |
+| `lab/guardrails.py` | Guardrails: personal data, messages, LLM instruction detector |
+| `lab/scenario.yaml` | The single gateway memory-leak incident |
+| `lab/guardrail_prompt.md` | Starting prompt for exercise 5 |
+| `lab/guardrail_bench.yaml` | Six guardrail examples for exercise 5 |
 
-All six cases must pass together: a defence that breaks a legitimate case is not done.
+## Validation
 
-## Write down
+The automated checks use local model doubles and do not call the OpenAI API:
 
-- **1.** Your policy as a table, and why an approval is not authorization.
-- **2.** One thing your mask hid that the agent needed, or one thing it missed, and how you found out.
-- **3.** Which attack `screen` misses and `justified` stops, and the reverse.
-- For each control: one false positive (legitimate work blocked) and one false negative (an attack that passed) you found or can imagine.
-
-## Optional — attack and defence
-
-Two teams. One writes a new case (an order hidden in a log, a ticket, a memory seed or a tool description, or a request that tries to get data out). The other runs it, fixes what passes, and keeps the legitimate cases green. Swap.
-
-## Rules
-
-- Do not edit `meridian/` or `starter/harness.py`.
-- Run the earlier sessions' cases after your changes: a new control can break them.
-- Deliverable: your three files, `threat-model.md`, the notes, and one attack case next to a legitimate case that looks like it.
+```bash
+uv run --locked python -m pytest meridian/tests sessions/course-02-agentic-ai/05-security/lab/tests
+```

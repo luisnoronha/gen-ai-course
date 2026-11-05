@@ -1,0 +1,14 @@
+# One fault shared by every exercise. Each run adds only its own prepared log.
+id: guided-security
+title: Gateway memory leak
+seed: 57
+date: "2026-11-04"
+start_time: "11:00"
+warmup_ticks: 20
+background_log_lines: 0
+incident:
+  id: INC-5200
+  summary: "High gateway latency. One gateway instance has excessive memory usage."
+  alert: latency_high/order-gateway
+faults:
+  - {type: resource, at: 2, instance: order-gateway-2, resource: memory, start_value: 88, rate: 0.3}
