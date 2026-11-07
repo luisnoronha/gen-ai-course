@@ -1,0 +1,42 @@
+# One incident, symptoms in several sources. The root cause is a network change on the gateway hosts.
+# The tempting mitigation (fail over to site B) fails: reference-db on site B is in planned maintenance.
+id: s07-multi-source
+title: Slow and rejected orders, seen from three places
+seed: 71
+date: "2026-11-04"
+start_time: "10:20"
+warmup_ticks: 30
+background_log_lines: 4
+incident:
+  id: INC-7300
+  summary: "Orders are slow and some members see rejections. Latency alert on order-gateway, a member ticket and settlement warnings."
+  alert: latency_high/order-gateway
+changes:
+  - change_id: CHG-4750
+    component: order-gateway
+    kind: config
+    description: "Network ACL update between order-gateway (site A) and reference-db"
+    at: 18
+faults:
+  - {type: link, at: 18, change_id: CHG-4750, source: order-gateway, target: reference-db, mode: degraded, extra_latency_ms: 180}
+logs:
+  - {at: 18, component: order-gateway, instance: order-gateway-1, level: WARN, message: "WARN  reference-db round trip 190 ms (was 3 ms) after ACL reload (CHG-4750)"}
+  - {at: 22, component: settlement, instance: settlement-1, level: WARN, message: "WARN  order confirmations from order-gateway arriving late; batch 10:12 delayed"}
+  - {at: 27, component: reference-db, instance: reference-db-2, level: INFO, message: "INFO  site B replica in planned maintenance (MRX-4790); connections refused until 13:00"}
+tickets:
+  - key: MRX-4790
+    issue_type: Change
+    summary: "Planned maintenance: reference-db site B, 10:00-13:00"
+    description: "reference-db site B is offline for a storage upgrade. Site B services cannot reach the database. Do not fail over any service to site B during the window."
+    status: In Progress
+    component: reference-db
+    reporter: dba-team
+    at: 0
+  - key: MRX-4801
+    issue_type: Incident
+    summary: "Member NORDBANK: orders acknowledged after 2-3 seconds"
+    description: "Since about 10:10 our orders are slow. A few were rejected with timeout."
+    status: Open
+    component: order-gateway
+    reporter: member-support
+    at: 24
