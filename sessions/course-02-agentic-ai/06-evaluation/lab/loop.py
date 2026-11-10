@@ -1,12 +1,14 @@
 """The self-improvement loop.
 
     run the agent on the training cases
-      -> the critic reviews every run            (critic.py + starter/critic.py)
-      -> the proposer changes ONE thing          (reads the reviews and its memory: starter/memory.py)
+      -> the critic reviews every run            (starter/improver.py: describe_run, build_critic)
+      -> the proposer changes ONE thing          (starter/improver.py: build_proposer, proposer_message, recall)
       -> run the new version on the same cases
       -> keep it or not                          (by the case checks: starter/decision.py; or by the critic's score)
-      -> write a lesson to memory
+      -> write a lesson to memory                (starter/improver.py: lesson)
     ...repeat, then test the best version on reserved cases it never saw.
+
+This file only runs the loop. The parts that think are the students' (pieces.py falls back to defaults).
 """
 
 from __future__ import annotations
@@ -14,37 +16,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal
 
-from pydantic import BaseModel, Field
-from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
 
 import agents
 import critic
+import pieces
 import suite
+from models import Proposal, Review
 
 TRAINING = ("s01-gateway-latency", "s01-alert-cleared-errors", "s02-firewall-change", "s02-noisy-gateway", "s02-lost-response")
 RESERVED = ("s01-stale-alert", "s01-market-data-delay", "s01-metrics-unavailable", "s01-flaky-metrics", "s02-hidden-config-change")
-
-PROPOSER = """\
-You improve the instructions of an incident agent for a stock exchange. You receive its current instructions,
-the critic's reviews of its last runs, and what you remember from earlier attempts.
-Propose ONE change that addresses the most important problem. Do not repeat a change that already failed.
-Return the change in one line, and the complete new instructions (not a diff).
-verify_recovery adds a check in code: "resolved" only after 3 healthy readings.
-"""
-
-
-class Proposal(BaseModel):
-    change: str = Field(description="The one change, in one line.")
-    instructions: str = Field(description="The complete new instructions.")
-    verify_recovery: bool
-
 
 @dataclass
 class Evaluation:
     version: agents.Version
     results: list[suite.RunResult]
-    reviews: list[critic.Review] = field(default_factory=list)
+    reviews: list[Review] = field(default_factory=list)
 
     @property
     def pass_rate(self) -> float:
@@ -82,6 +69,8 @@ class Loop:
     attempts: list[Attempt] = field(default_factory=list)
     lessons: list[str] = field(default_factory=list)
     reserved: tuple[Evaluation, Evaluation] | None = None
+    who: dict[str, str] = field(default_factory=dict)  # each piece: "yours", "default" or "none"
+    last_message: str = ""  # what the proposer read last time
 
     # One evaluation: run, then let the critic review every run ---------------------------------
 
@@ -92,7 +81,8 @@ class Loop:
         evaluation = Evaluation(version, results)
         if reviews:
             progress(f"{version.name}: the critic reviews {len(results)} runs")
-            evaluation.reviews = critic.review_all(model, self.critic_prompt, [r.description for r in results])
+            evaluation.reviews, self.who["critic agent"] = critic.review_all(model, self.critic_prompt, [r.description for r in results])
+            self.who["what the critic sees"] = results[0].description_origin if results else "default"
         return evaluation
 
     def begin(self, model: Any, progress: Callable[[str], None] = print) -> None:
@@ -101,22 +91,15 @@ class Loop:
     # One iteration ------------------------------------------------------------------------------
 
     def memory_text(self) -> str:
-        try:
-            return suite.load_starter("memory").recall(self.lessons)
-        except NotImplementedError:
-            return "(no memory: starter/memory.py is not written yet)"
-
-    def feedback(self) -> str:
-        lines = []
-        for result, review in zip(self.best.results, self.best.reviews):
-            if not review.acceptable or review.score <= 3:
-                lines.append(f"- {result.case} (score {review.score}): {review.problem}. Hint: {review.fix_hint}")
-        return "\n".join(dict.fromkeys(lines)) or "- The critic found no problem."
+        text, self.who["memory: recall"] = pieces.recall(self.lessons)
+        return text
 
     def propose(self, model: Any) -> Proposal:
-        agent = Agent(model, output_type=Proposal, instructions=PROPOSER)
-        message = (f"CURRENT INSTRUCTIONS:\n{self.best.version.instructions}\n\nverify_recovery: {self.best.version.verify_recovery}\n\n"
-                   f"CRITIC'S REVIEWS OF THE LAST RUNS:\n{self.feedback()}\n\nWHAT YOU REMEMBER:\n{self.memory_text()}")
+        reviews = [(result.case, review) for result, review in zip(self.best.results, self.best.reviews)]
+        message, self.who["what the proposer reads"] = pieces.proposer_message(
+            self.best.version.instructions, self.best.version.verify_recovery, reviews, self.memory_text())
+        self.last_message = message
+        agent, self.who["proposer agent"] = pieces.proposer_agent(model)
         return agent.run_sync(message, usage_limits=UsageLimits(request_limit=3)).output
 
     def judge_change(self, before: Evaluation, after: Evaluation) -> tuple[bool, str]:
@@ -148,10 +131,7 @@ class Loop:
         kept, reason = self.judge_change(self.best, after)
         attempt = Attempt(number, proposal.change, kept, reason, self.best.pass_rate, after.pass_rate, self.best.score, after.score, proposal.instructions)
         self.attempts.append(attempt)
-        try:
-            line = suite.load_starter("memory").lesson(attempt)
-        except NotImplementedError:
-            line = None
+        line, self.who["memory: lesson"] = pieces.lesson(attempt)
         if line:
             self.lessons.append(line)
         if kept:

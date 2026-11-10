@@ -27,8 +27,7 @@ Needs `OPENAI_API_KEY` in the repository's `.env`. Three tabs, one per step. Cli
 | `my_agent.py` | Your own incident agent, version C: tools, instructions and checks. AI help allowed. | 1 and 3 |
 | `trajectory.py` | Two checks on the path the agent took, not only on the result. | 1 and 3 |
 | `decision.py` | The rule that decides whether to adopt a new version. | 1 and 3 |
-| `critic.py` | What the critic sees about a run. | 3 |
-| `memory.py` | What the proposer remembers between attempts. | 3 |
+| `improver.py` | The agents that improve the agent: what the critic sees, the critic, the proposer and its memory. AI help allowed. | 2 and 3 |
 | `cases/` + `checks/` | Optional: a new case, with its checks, that separates A from B. | 1 |
 
 The enunciado and hints are at the top of each file. Reload the page (tab 1) or click **Reset** (tab 3) after editing.
@@ -40,7 +39,9 @@ The enunciado and hints are at the top of each file. Reload the page (tab 1) or 
 | `lab/app.py` | The lab: the three tabs. |
 | `lab/agents.py` | Versions A and B: same tools and report, different harness. |
 | `lab/suite.py` | Runs the cases in parallel and checks each run. |
-| `lab/critic.py`, `lab/critic_prompt.md` | The critic and its default prompt. |
+| `lab/critic.py`, `lab/critic_prompt.md` | Runs the critic; its default prompt. |
+| `lab/pieces.py` | Uses your improver.py, or a simple default for each piece you have not written. |
+| `lab/models.py` | Review and Proposal: what the critic and the proposer must return. |
 | `lab/loop.py` | The self-improvement loop: proposer, decision, memory, reserved cases. |
 | `lab/summaries.yaml` | Five reports by different AI agents, with the facts, to label in tab 2. |
 

@@ -73,7 +73,7 @@ MODEL = FunctionModel(scripted)
 @pytest.fixture
 def solutions():
     """Use the reference solutions as the students' files, then restore the starter files."""
-    names = ("trajectory.py", "decision.py", "critic.py", "memory.py")
+    names = ("trajectory.py", "decision.py", "improver.py")
     saved = {name: (agents.STARTER / name).read_text(encoding="utf-8") for name in names}
     for name in names:
         shutil.copy(REPO / "private/course-02-agentic-ai/reference/session-06" / name, agents.STARTER / name)
@@ -132,11 +132,12 @@ def test_reference_decision():
 
 def test_critic_and_agreement():
     items = [{"task": "t", "facts": "f", "summary": "Incident resolved."}, {"task": "t", "facts": "f", "summary": "Restarted order-gateway-2. Resolved."}]
-    reviews = critic.review_all(MODEL, "prompt", [critic.summary_text(item) for item in items])
+    reviews, origin = critic.review_all(MODEL, "prompt", [critic.summary_text(item) for item in items])
+    assert origin == "default"
     assert critic.agreement([False, True], reviews)["agree"] == 2
 
 
-def test_critic_sees_only_the_agents_words_until_critic_py_is_written():
+def test_critic_sees_only_the_agents_words_until_improver_is_written():
     result = suite.run_one(agents.B, "s01-gateway-latency", suite.cases()["s01-gateway-latency"], MODEL)
     assert result.description.startswith("Status reported by the agent")
 
@@ -147,6 +148,7 @@ def test_loop_iterates_keeps_memory_and_tests_reserved(solutions):
     assert attempt.iteration == 1 and attempt.change
     assert state.lessons and "#1" in state.lessons[0]
     assert "WHAT THE AGENT DID" in state.best.results[0].description
+    assert set(state.who.values()) == {"yours"}  # every piece came from the students' improver.py
     state.step(MODEL, lambda text: None)
     assert len(state.attempts) == 2
     assert "#2" in state.memory_text()
@@ -159,6 +161,7 @@ def test_loop_can_accept_by_critic_score():
     attempt = state.step(MODEL, lambda text: None)
     assert "critic score" in attempt.reason
     assert state.memory_text().startswith("(no memory")
+    assert state.who["proposer agent"] == "default"
 
 
 def test_app_three_tabs():

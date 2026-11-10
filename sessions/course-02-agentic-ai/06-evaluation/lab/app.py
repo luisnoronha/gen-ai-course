@@ -29,7 +29,7 @@ Three steps, one per tab. Each one uses the previous one.
 
 **3 · Let the agents improve the agent**
 - Start from B, or from your C. Run 3 iterations. Read each change, and why it was kept or not.
-- Write `starter/critic.py` (what the critic sees) and `starter/memory.py` (what the proposer remembers). Reset and run again.
+- Build the critic, the proposer and the memory in `starter/improver.py` (AI help allowed). Reset and run again.
 - Switch *Accept a change by* to **Critic's score**. Run again, then **Test on reserved cases**.
 - Confirm in: **Training vs reserved**. Did the best version get better on cases it never saw?
 """
@@ -139,12 +139,15 @@ with critic_tab:
             labels[item["id"]] = label_col.radio("Acceptable?", ["Yes", "No"], index=None, key=f"label_{item['id']}", horizontal=True)
     st.markdown("**2. Run the critic and compare.**")
     prompt = st.text_area("Critic prompt (also used in tab 3)", DEFAULT_CRITIC_PROMPT, height=150, key="critic_prompt")
-    st.caption("Here the critic gets the facts. In tab 3 nobody gives it the facts: it sees only what starter/critic.py shows it.")
+    st.caption("Here the critic gets the facts. In tab 3 nobody gives it the facts: it sees only what your describe_run() shows it. "
+               "If you wrote build_critic() in starter/improver.py, this is your critic.")
     missing = [key for key, value in labels.items() if value is None]
     if st.button("Run the critic on the 5 reports", key="run_critic", type="primary", disabled=bool(missing)) and (model := model_or_error()):
         try:
             with st.spinner("The critic is reading..."):
-                st.session_state.s06_critic = (prompt, critic.review_all(model, prompt, [critic.summary_text(item) for item in SUMMARIES]))
+                reviews, origin = critic.review_all(model, prompt, [critic.summary_text(item) for item in SUMMARIES])
+                st.session_state.s06_critic = (prompt, reviews)
+                st.session_state.s06_critic_origin = origin
         except Exception as error:
             st.error(f"The critic failed: {error}")
     if missing:
@@ -192,7 +195,7 @@ def show_loop(state: loop.Loop) -> None:
     b.metric("Critic score, best version", f"{state.best.score:.1f} / 5", delta(state.best.score - first_score, f"{state.best.score - first_score:+.1f} vs start"))
     c.metric("Changes kept", f"{sum(x.kept for x in state.attempts)} of {len(state.attempts)}")
     if state.best.score >= 4 and state.best.pass_rate < 0.6:
-        st.warning("The critic is satisfied, but most case checks fail. What does the critic see? (starter/critic.py)")
+        st.warning("The critic is satisfied, but most case checks fail. What does the critic see? (describe_run in starter/improver.py)")
     rows = [{"Iteration": 0, "Change": f"start from {state.start.name}", "Result": "", "Training pass rate": f"{first_pass:.0%}",
              "Critic score": f"{first_score:.1f}", "Why": ""}]
     rows += [{"Iteration": x.iteration, "Change": x.change, "Result": "kept" if x.kept else "discarded",
@@ -220,8 +223,14 @@ def show_loop(state: loop.Loop) -> None:
         if state.best:
             st.caption(f"verify_recovery: {state.best.version.verify_recovery}")
             st.code(state.best.version.instructions, language=None, wrap_lines=True)
-    with st.expander("Memory: what the proposer reads before each change"):
+    if state.who:
+        st.markdown("**Who did what** in the last run")
+        st.dataframe([{"Piece": piece, "Used": {"yours": "yours (starter/improver.py)", "default": "the lab's default", "none": "not written"}[origin]}
+                      for piece, origin in state.who.items()], hide_index=True, width="stretch")
+    with st.expander("Memory: what the proposer remembers"):
         st.code(state.memory_text(), language=None, wrap_lines=True)
+    with st.expander("What the proposer read before the last change"):
+        st.code(state.last_message or "Nothing yet.", language=None, wrap_lines=True)
     with st.expander("The critic's last reviews, and what it saw"):
         if state.best and state.best.reviews:
             st.dataframe([{"Case": r.case, "Pass (checks)": r.passed, "Critic score": v.score, "Problem": v.problem, "Hint": v.fix_hint,
@@ -233,8 +242,9 @@ with loop_tab:
              "You decide what counts as better.")
     flow()
     st.info("**What to do here**\n"
-            "1. Run 3 iterations from B, as it is. Read each change and why it was kept or discarded.\n"
-            "2. Write `starter/critic.py` and `starter/memory.py`. Click Reset and run 3 iterations again. Do the changes make more sense?\n"
+            "1. Run 3 iterations from B (or your C) with the lab's default critic and proposer. Read each change and why it was kept or discarded.\n"
+            "2. Build your own critic, proposer and memory in `starter/improver.py` (AI help allowed). Click Reset and run 3 iterations again. "
+            "The table *Who did what* shows which pieces are yours. Do the changes make more sense?\n"
             "3. Reset, choose *Accept a change by: Critic's score*, run 3 iterations, then **Test on reserved cases**. "
             "Did the version that pleased the critic also improve on cases it never saw?")
     state: loop.Loop | None = st.session_state.get("s06_loop")
@@ -271,7 +281,7 @@ with loop_tab:
             st.session_state.pop("s06_loop", None)
             st.rerun()
         if state is not None:
-            st.caption("Settings are fixed while the loop runs. Reset to change them, or after editing critic.py, memory.py or the critic prompt.")
+            st.caption("Settings are fixed while the loop runs. Reset to change them, or after editing improver.py or the critic prompt.")
     if state is not None:
         show_loop(state)
     st.markdown("**Check:** Which changes were kept, and why? Accepting by the critic's score: did the reserved cases improve too?")

@@ -48,15 +48,10 @@ def trajectory_checks() -> list[Callable[[IncidentRun], tuple[bool, str]]]:
     return list(getattr(load_starter("trajectory"), "CHECKS", []))
 
 
-def describe(run: IncidentRun) -> str:
-    """What the critic sees about a run: starter/critic.py, or only the agent's own words."""
-    try:
-        return load_starter("critic").describe_run(run)
-    except NotImplementedError:
-        report = run.report
-        if report is None:
-            return f"The run ended without a report ({run.error})."
-        return f"Status reported by the agent: {report.status}\nSummary: {report.summary}"
+def describe(run: IncidentRun) -> tuple[str, str]:
+    """What the critic sees about a run: describe_run() in starter/improver.py, or only the agent's own words."""
+    import pieces
+    return pieces.describe(run)
 
 
 @dataclass
@@ -73,6 +68,7 @@ class RunResult:
     trajectory: dict[str, str] = field(default_factory=dict)
     actions: list[str] = field(default_factory=list)
     description: str = ""  # what the critic sees
+    description_origin: str = "default"
 
     @property
     def row(self) -> dict[str, Any]:
@@ -102,13 +98,14 @@ def run_one(version: agents.Version, case: str, path: Path, model: Any) -> RunRe
     report = run.report.model_dump() if run.report is not None else {}
     ok_trajectory, notes, failed_trajectory = _check_trajectory(run, trajectory_checks())
     actions = [f"{record.action} {record.target} -> {record.outcome}" for record in run.sim.executor.audit]
+    text, origin = describe(run)
     return RunResult(
         version=version.name, case=case,
         passed=run.error is None and not failed and ok_trajectory,
         failed=failed + [f"trajectory: {name}" for name in failed_trajectory] + ([run.error] if run.error else []),
         tokens=run.extra.get("input_tokens", 0), requests=run.extra.get("requests", 0),
         status=report.get("status", "no report"), summary=report.get("summary", ""), error=run.error,
-        trajectory=notes, actions=actions, description=describe(run),
+        trajectory=notes, actions=actions, description=text, description_origin=origin,
     )
 
 
