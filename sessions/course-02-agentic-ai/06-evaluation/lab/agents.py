@@ -2,7 +2,8 @@
 
 - A (current): follows the runbooks and checks recovery in code before "resolved".
 - B (proposed): faster and cheaper; acts on the first plausible cause.
-- C (yours): starter/candidate.py.
+- C (yours): the agent the students build in starter/my_agent.py.
+The self-improvement loop (loop.py) creates new versions from one of them, changing the instructions.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, ModelRetry, RunContext
@@ -142,28 +143,43 @@ class Version:
     instructions: str
     verify_recovery: bool
     description: str
+    builder: Callable[[Any, str], Agent] | None = None  # C: the students' build_agent(model, instructions)
 
 
 A = Version("A (current)", A_INSTRUCTIONS, True, "Follows the runbooks, lists every alert, checks recovery in code.")
 B = Version("B (proposed)", B_INSTRUCTIONS, False, "Faster and cheaper: acts on the first plausible cause, no recovery check.")
 
 
-def candidate() -> Version | None:
-    """Version C from starter/candidate.py, if the students wrote one."""
-    path = STARTER / "candidate.py"
+MINE_ERROR: str | None = None
+
+
+def mine() -> Version | None:
+    """Version C from starter/my_agent.py, once build_agent() is written."""
+    path = STARTER / "my_agent.py"
     if not path.is_file():
         return None
-    spec = importlib.util.spec_from_file_location("s06_candidate", path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["s06_candidate"] = module
-    spec.loader.exec_module(module)
-    if not getattr(module, "INSTRUCTIONS", "").strip():
+    global MINE_ERROR
+    MINE_ERROR = None
+    from pydantic_ai.models.test import TestModel
+    try:
+        spec = importlib.util.spec_from_file_location("s06_my_agent", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["s06_my_agent"] = module
+        spec.loader.exec_module(module)
+        module.build_agent(TestModel(), module.INSTRUCTIONS)
+    except NotImplementedError:
         return None
-    return Version("C (yours)", module.INSTRUCTIONS, bool(getattr(module, "VERIFY_RECOVERY", False)), getattr(module, "DESCRIPTION", "starter/candidate.py"))
+    except Exception as error:  # Show the students' error in the app instead of crashing it.
+        MINE_ERROR = f"{type(error).__name__}: {error}"
+        return None
+    return Version("C (yours)", module.INSTRUCTIONS, False, getattr(module, "DESCRIPTION", "starter/my_agent.py"), module.build_agent)
 
 
 def versions() -> dict[str, Version]:
-    found = {version.name: version for version in (A, B, candidate()) if version is not None}
+    found = {A.name: A, B.name: B}
+    c = mine()
+    if c is not None:
+        found[c.name] = c
     return found
 
 
@@ -171,6 +187,8 @@ def harness(version: Version) -> SimpleNamespace:
     """A harness object for meridian.agent_runtime.run_incident."""
 
     def build_agent(model: Any) -> Agent[IncidentDeps, IncidentReport]:
+        if version.builder is not None:
+            return version.builder(model, version.instructions)
         agent = Agent(model, deps_type=IncidentDeps, output_type=IncidentReport, instructions=version.instructions, retries=3)
         for tool in TOOLS:
             agent.tool(tool)

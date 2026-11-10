@@ -1,9 +1,10 @@
 # Session 6 — Evaluating Harnesses: Reliability and Regressions
 
 - Two versions of the incident agent: **A** (current) and **B** (proposed, faster and cheaper).
-- B looks better on some incidents. Is it really better, on every case, every time?
-- You replay the accumulated cases of Sessions 1 and 2, several times, and decide with evidence.
-- An LLM judge will grade incident summaries. First you check it against people: you.
+- B looked better in a few incidents. Is it really better, on every case, every time?
+- Then two more agents try to improve the incident agent by themselves: a **critic** reviews its runs,
+  a **proposer** changes its instructions and remembers what it tried.
+- You decide what counts as "better", and check the result on cases the loop never saw.
 
 ## Run the lab
 
@@ -11,27 +12,36 @@
 uv run --locked streamlit run sessions/course-02-agentic-ai/06-evaluation/lab/app.py
 ```
 
-Needs `OPENAI_API_KEY` in the repository's `.env`. Click **What to try** (top right) for the steps.
+Needs `OPENAI_API_KEY` in the repository's `.env`. Three tabs, one per step. Click **What to try** (top right).
+
+| Tab | What you do |
+|---|---|
+| 1 · Compare A and B | Run both on the accumulated cases, several times. Decide with a rule. |
+| 2 · Calibrate the critic | Label 5 agent reports yourself, run the critic, fix its prompt until you trust it. |
+| 3 · Let the agents improve the agent | Run the loop: critic, proposer, keep or discard, memory. Test on reserved cases. |
 
 ## Exercises (in `starter/`)
 
-| File | What you write |
-|---|---|
-| `trajectory.py` | Two checks on the path the agent took, not only on the result. |
-| `decision.py` | The rule that decides whether to adopt a new version. |
-| `candidate.py` | Version C: B's gains without its regressions. |
-| `cases/` + `checks/` | Optional: a new case, with its checks, that separates A from B. |
+| File | What you write | Used in tab |
+|---|---|---|
+| `my_agent.py` | Your own incident agent, version C: tools, instructions and checks. AI help allowed. | 1 and 3 |
+| `trajectory.py` | Two checks on the path the agent took, not only on the result. | 1 and 3 |
+| `decision.py` | The rule that decides whether to adopt a new version. | 1 and 3 |
+| `critic.py` | What the critic sees about a run. | 3 |
+| `memory.py` | What the proposer remembers between attempts. | 3 |
+| `cases/` + `checks/` | Optional: a new case, with its checks, that separates A from B. | 1 |
 
-The enunciado and hints are at the top of each file. The lab picks up your changes when you reload the page.
+The enunciado and hints are at the top of each file. Reload the page (tab 1) or click **Reset** (tab 3) after editing.
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `lab/app.py` | The lab: compare versions, calibrate the judge, fool the judge. |
+| `lab/app.py` | The lab: the three tabs. |
 | `lab/agents.py` | Versions A and B: same tools and report, different harness. |
 | `lab/suite.py` | Runs the cases in parallel and checks each run. |
-| `lab/judge.py`, `lab/judge_prompt.md` | The LLM judge and its default prompt. |
-| `lab/summaries.yaml` | Eight summaries, with the facts, to label. |
+| `lab/critic.py`, `lab/critic_prompt.md` | The critic and its default prompt. |
+| `lab/loop.py` | The self-improvement loop: proposer, decision, memory, reserved cases. |
+| `lab/summaries.yaml` | Five reports by different AI agents, with the facts, to label in tab 2. |
 
 Tests (no API key): `uv run --locked pytest sessions/course-02-agentic-ai/06-evaluation/lab/tests -q`

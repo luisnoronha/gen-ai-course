@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
-import json
+import shutil
 import sys
+
+import pytest
 from pathlib import Path
 
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart, UserPromptPart
@@ -14,17 +16,25 @@ LAB = Path(__file__).resolve().parents[1]
 REPO = LAB.parents[3]
 sys.path.insert(0, str(LAB))
 import agents
-import judge
+import critic
+import loop
 import suite
+from pydantic_ai.messages import ModelRequest
 
 
 def scripted(messages, info):
-    """A simple agent: read the alert and metrics, restart an instance above 90% memory, read again, report."""
+    """Plays every agent: the incident agent (a simple script), the critic and the proposer."""
     returned = [part for message in messages for part in message.parts if isinstance(part, ToolReturnPart)]
     prompt = next(part.content for message in messages for part in message.parts if isinstance(part, UserPromptPart))
-    if info.output_tools and info.output_tools[0].name == "final_result" and "SUMMARY:" in prompt:
-        accepted = "resolved" not in prompt.split("SUMMARY:")[1].lower() or "restarted" in prompt.lower()
-        return ModelResponse(parts=[ToolCallPart("final_result", {"acceptable": accepted, "score": 4 if accepted else 2, "reason": "scripted"})])
+    instructions = next((m.instructions for m in messages if isinstance(m, ModelRequest) and m.instructions), "") or ""
+    output_fields = info.output_tools[0].parameters_json_schema.get("properties", {}) if info.output_tools else {}
+    if "fix_hint" in output_fields:  # the critic
+        bad = "FAIL" in prompt or ("resolved" in prompt.lower() and "restarted" not in prompt.lower() and "restart_instance" not in prompt)
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {"acceptable": not bad, "score": 2 if bad else 4,
+                                                                         "problem": "claims without evidence" if bad else "none", "fix_hint": "check the state"})])
+    if instructions.startswith("You improve the instructions"):  # the proposer
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {"change": "Check links and recent changes before acting.",
+                                                                         "instructions": agents.A_INSTRUCTIONS, "verify_recovery": True})])
 
     def call(name, **args):
         return ModelResponse(parts=[ToolCallPart(name, args)])
@@ -58,6 +68,18 @@ def scripted(messages, info):
 
 
 MODEL = FunctionModel(scripted)
+
+
+@pytest.fixture
+def solutions():
+    """Use the reference solutions as the students' files, then restore the starter files."""
+    names = ("trajectory.py", "decision.py", "critic.py", "memory.py")
+    saved = {name: (agents.STARTER / name).read_text(encoding="utf-8") for name in names}
+    for name in names:
+        shutil.copy(REPO / "private/course-02-agentic-ai/reference/session-06" / name, agents.STARTER / name)
+    yield
+    for name, text in saved.items():
+        (agents.STARTER / name).write_text(text, encoding="utf-8")
 
 
 def load(path: Path, name: str):
@@ -108,16 +130,40 @@ def test_reference_decision():
     assert ref.decide([C("x", 3, 3, 3, 3)], 100, 100).adopt is False
 
 
-def test_judge_and_agreement():
-    items = [{"facts": "f", "summary": "Incident resolved."}, {"facts": "f", "summary": "Restarted order-gateway-2. Resolved."}]
-    verdicts = judge.judge_all(MODEL, "prompt", items)
-    counts = judge.agreement([False, True], verdicts)
-    assert counts["agree"] == 2
+def test_critic_and_agreement():
+    items = [{"task": "t", "facts": "f", "summary": "Incident resolved."}, {"task": "t", "facts": "f", "summary": "Restarted order-gateway-2. Resolved."}]
+    reviews = critic.review_all(MODEL, "prompt", [critic.summary_text(item) for item in items])
+    assert critic.agreement([False, True], reviews)["agree"] == 2
 
 
-def test_app_runs_suite_and_judge():
+def test_critic_sees_only_the_agents_words_until_critic_py_is_written():
+    result = suite.run_one(agents.B, "s01-gateway-latency", suite.cases()["s01-gateway-latency"], MODEL)
+    assert result.description.startswith("Status reported by the agent")
+
+
+def test_loop_iterates_keeps_memory_and_tests_reserved(solutions):
+    state = loop.Loop(agents.B, "prompt", "checks", repetitions=1)
+    attempt = state.step(MODEL, lambda text: None)
+    assert attempt.iteration == 1 and attempt.change
+    assert state.lessons and "#1" in state.lessons[0]
+    assert "WHAT THE AGENT DID" in state.best.results[0].description
+    state.step(MODEL, lambda text: None)
+    assert len(state.attempts) == 2
+    assert "#2" in state.memory_text()
+    first, best = state.test_reserved(MODEL, lambda text: None)
+    assert {r.case for r in first.results} == set(loop.RESERVED)
+
+
+def test_loop_can_accept_by_critic_score():
+    state = loop.Loop(agents.B, "prompt", "critic", repetitions=1)
+    attempt = state.step(MODEL, lambda text: None)
+    assert "critic score" in attempt.reason
+    assert state.memory_text().startswith("(no memory")
+
+
+def test_app_three_tabs():
     from streamlit.testing.v1 import AppTest
-    at = AppTest.from_file(str(LAB / "app.py"), default_timeout=60)
+    at = AppTest.from_file(str(LAB / "app.py"), default_timeout=120)
     at.session_state["model"] = MODEL
     at.run()
     assert not at.exception
@@ -125,10 +171,34 @@ def test_app_runs_suite_and_judge():
     at.button(key="run_suite").click().run()
     assert not at.exception
     assert len(at.session_state["s06_results"]) == 4
-    for item in ("S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"):
+    for item in ("R1", "R2", "R3", "R4", "R5"):
         at.radio(key=f"label_{item}").set_value("No")
     at.run()
-    at.button(key="run_judge").click().run()
+    at.button(key="run_critic").click().run()
     assert not at.exception
+    at.number_input(key="loop_reps").set_value(1)
+    at.button(key="loop_one").click().run()
+    assert not at.exception
+    assert len(at.session_state["s06_loop"].attempts) == 1
+    at.button(key="loop_test").click().run()
+    assert not at.exception
+    assert at.session_state["s06_loop"].reserved is not None
     at.button(key="guide").click().run()
     assert not at.exception
+
+
+def test_students_agent_becomes_version_c():
+    assert "C (yours)" not in agents.versions()  # the starter is blank
+    saved = (agents.STARTER / "my_agent.py").read_text(encoding="utf-8")
+    shutil.copy(REPO / "private/course-02-agentic-ai/reference/session-06/my_agent.py", agents.STARTER / "my_agent.py")
+    try:
+        found = agents.versions()
+        assert "C (yours)" in found
+        c = found["C (yours)"]
+        result = suite.run_one(c, "s01-gateway-latency", suite.cases()["s01-gateway-latency"], MODEL)
+        assert result.version == "C (yours)"  # the fake model never checks links, so the guard blocks its restart
+        state = loop.Loop(c, "prompt", "critic", repetitions=1)
+        state.step(MODEL, lambda text: None)
+        assert state.attempts[0] and state.best.version.builder is c.builder
+    finally:
+        (agents.STARTER / "my_agent.py").write_text(saved, encoding="utf-8")

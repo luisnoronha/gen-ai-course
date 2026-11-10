@@ -34,14 +34,29 @@ def cases() -> dict[str, Path]:
     return found
 
 
+def load_starter(name: str):
+    """A students' file from starter/, loaded fresh so edits apply without restarting the app."""
+    spec = importlib.util.spec_from_file_location(f"s06_{name}", agents.STARTER / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[f"s06_{name}"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def trajectory_checks() -> list[Callable[[IncidentRun], tuple[bool, str]]]:
     """The functions listed in starter/trajectory.py (CHECKS). Unwritten ones are skipped."""
-    path = agents.STARTER / "trajectory.py"
-    spec = importlib.util.spec_from_file_location("s06_trajectory", path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["s06_trajectory"] = module
-    spec.loader.exec_module(module)
-    return list(getattr(module, "CHECKS", []))
+    return list(getattr(load_starter("trajectory"), "CHECKS", []))
+
+
+def describe(run: IncidentRun) -> str:
+    """What the critic sees about a run: starter/critic.py, or only the agent's own words."""
+    try:
+        return load_starter("critic").describe_run(run)
+    except NotImplementedError:
+        report = run.report
+        if report is None:
+            return f"The run ended without a report ({run.error})."
+        return f"Status reported by the agent: {report.status}\nSummary: {report.summary}"
 
 
 @dataclass
@@ -57,6 +72,7 @@ class RunResult:
     error: str | None = None
     trajectory: dict[str, str] = field(default_factory=dict)
     actions: list[str] = field(default_factory=list)
+    description: str = ""  # what the critic sees
 
     @property
     def row(self) -> dict[str, Any]:
@@ -92,11 +108,11 @@ def run_one(version: agents.Version, case: str, path: Path, model: Any) -> RunRe
         failed=failed + [f"trajectory: {name}" for name in failed_trajectory] + ([run.error] if run.error else []),
         tokens=run.extra.get("input_tokens", 0), requests=run.extra.get("requests", 0),
         status=report.get("status", "no report"), summary=report.get("summary", ""), error=run.error,
-        trajectory=notes, actions=actions,
+        trajectory=notes, actions=actions, description=describe(run),
     )
 
 
-def run_many(jobs: list[tuple[agents.Version, str, Path]], model: Any, workers: int = 4, on_done: Callable[[int, int], None] | None = None) -> list[RunResult]:
+def run_many(jobs: list[tuple[agents.Version, str, Path]], model: Any, workers: int = 6, on_done: Callable[[int, int], None] | None = None) -> list[RunResult]:
     """Run the jobs in parallel (each on its own fresh simulator)."""
     results: list[RunResult] = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -106,17 +122,21 @@ def run_many(jobs: list[tuple[agents.Version, str, Path]], model: Any, workers: 
                 results.append(future.result())
             except Exception as error:  # A failed request must not lose the other runs.
                 version, case, _ = jobs[futures.index(future)]
-                results.append(RunResult(version.name, case, False, [f"run failed: {error}"], 0, 0, "error", "", str(error)))
+                results.append(RunResult(version.name, case, False, [f"run failed: {error}"], 0, 0, "error", "", str(error), description=f"The run failed: {error}"))
             if on_done:
                 on_done(done, len(jobs))
     return results
+
+
+def pass_rate(results: list[RunResult]) -> float:
+    return sum(r.passed for r in results) / len(results) if results else 0.0
 
 
 def pass_table(results: list[RunResult]) -> list[dict[str, Any]]:
     """One row per case, one column per version: 'passes/runs'."""
     names = list(dict.fromkeys(result.version for result in results))
     rows = []
-    for case in dict.fromkeys(result.case for result in results):
+    for case in sorted({result.case for result in results}):
         row: dict[str, Any] = {"Case": case}
         for name in names:
             runs = [result for result in results if result.case == case and result.version == name]
