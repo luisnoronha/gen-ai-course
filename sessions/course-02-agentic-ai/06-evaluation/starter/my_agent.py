@@ -2,7 +2,7 @@
 
 A and B differ only in their instructions and one check. Here you build the whole agent yourself, and then
 measure it against A and B with the same cases and repetitions (tab 1). It can also be the start of the
-self-improvement loop (tab 3); the loop will then change only your INSTRUCTIONS.
+self-improvement loop (tab 2); the loop will then change only your INSTRUCTIONS.
 
 You may use an AI assistant to write this file. Then read it: you must be able to explain every tool,
 check and limit it contains, and which failure of A or B each one is meant to fix.

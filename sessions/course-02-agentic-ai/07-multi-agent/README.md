@@ -1,10 +1,11 @@
-# Session 7 — Multi-Agent Orchestration: from the Alert to the Recovery
+# Session 7 — Multi-Agent Orchestration: the incident room
 
-- One incident, three sources: a latency alert, a member ticket, settlement warnings.
-- An incident team: a **commander** that delegates, **network** and **database** specialists that investigate
-  in parallel, a **remediation** specialist that acts, and an independent **verifier**.
-- Each agent looks right on its own. Together they fail: the remediation never hears what the investigation found.
-- And a "resolved" can be faked: silence the alert instead of fixing the cause.
+One incident, five agents. You watch them work live: who is busy, who talks to whom, what each one does.
+
+- **Network** and **Database** investigate. They change nothing.
+- **Remediation** acts. Every action needs the on-call's approval.
+- **Reviewer** checks the real state at the end.
+- **You** decide how they work together: a fixed pipeline, or a commander agent.
 
 ## Run the lab
 
@@ -12,24 +13,33 @@
 uv run --locked streamlit run sessions/course-02-agentic-ai/07-multi-agent/lab/app.py
 ```
 
-Needs `OPENAI_API_KEY` in the repository's `.env`. Click **What to try** (top right) for the steps.
+Needs `OPENAI_API_KEY` in the repository's `.env`. Click **What to try** (top right).
+
+## The two incidents
+
+| Incident | What happened | The right fix |
+|---|---|---|
+| INC-1 · A network change | A config change (CHG-4750) slowed the gateway's link to the database. | Roll back the change. |
+| INC-2 · Site A's network is failing | Site A's carrier link is losing packets. Nothing to roll back. | Move the gateway to another site. Not site B: its database is in maintenance. |
 
 ## Exercises (in `starter/`)
 
-| File | What you write |
-|---|---|
-| `contracts.py` | The task contract the commander fills in before delegating, and the text remediation receives. |
-| `verifier.py` | The verifier's checks in code: is the incident really over? |
+| Tab | File | What you write |
+|---|---|---|
+| 1 · Pipeline | `pipeline.py` | The agents in a fixed order, in code. |
+| 2 · Commander | `commander.py` | An agent whose tools are the other agents. It decides whom to ask and when. AI help allowed. |
 
-The enunciado and hints are at the top of each file. Switch the matching control on in the lab and run again.
+The **Demo** tab is for the trainer: a person approves each action, and a reviewer checks the result.
+
+The enunciado and hints are at the top of each file. Compare every run in the table **Every run** (result, model calls, tokens, seconds).
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `lab/app.py` | The lab: the team, the controls, report vs real state, the timeline per agent. |
-| `lab/team.py` | The agents, their tools and how the commander delegates. |
-| `lab/world.py` | The incident, plus two actions: fail over to site B, raise an alert threshold. |
-| `lab/scenario.yaml` | What happens in the simulator. |
+| `lab/app.py` | The lab: the board, the approvals, the results. |
+| `lab/team.py` | The agents, their tools, `Team.ask` and the approvals. |
+| `lab/world.py` | The incident and the sites A, B and C. |
+| `lab/incidents/` | The two incidents. |
 
 Tests (no API key): `uv run --locked pytest sessions/course-02-agentic-ai/07-multi-agent/lab/tests -q`

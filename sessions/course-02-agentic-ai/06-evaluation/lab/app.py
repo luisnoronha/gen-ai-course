@@ -5,16 +5,14 @@ from __future__ import annotations
 from dataclasses import replace
 
 import streamlit as st
-import yaml
 
 import agents
-import critic
 import loop
 import suite
 from meridian.lab import ui
 
 GUIDE = """
-Three steps, one per tab. Each one uses the previous one.
+Two steps, one per tab. The second uses the first.
 
 **1 · Compare A and B**
 - Run A and B with **1 repetition**. Which looks better? Then go to 3 repetitions. Does it hold?
@@ -22,12 +20,7 @@ Three steps, one per tab. Each one uses the previous one.
 - Build your own agent in `starter/my_agent.py` (AI help allowed). Reload: **C** joins the comparison.
 - Write `starter/trajectory.py`: its checks show in **Every run**.
 
-**2 · Calibrate the critic**
-- Label the 5 reports yourself, then run the critic.
-- It accepts reports you reject? Rewrite its prompt so it checks facts, not style.
-- This is the critic of tab 3. Do not use it there before you trust it.
-
-**3 · Let the agents improve the agent**
+**2 · Let the agents improve the agent**
 - Start from B, or from your C. Run 3 iterations. Read each change, and why it was kept or not.
 - Build the critic, the proposer and the memory in `starter/improver.py` (AI help allowed). Reset and run again.
 - Switch *Accept a change by* to **Critic's score**. Run again, then **Test on reserved cases**.
@@ -36,11 +29,6 @@ Three steps, one per tab. Each one uses the previous one.
 
 ui.page("Evaluation Lab: is the new version really better?", GUIDE)
 DEFAULT_CRITIC_PROMPT = (agents.HERE / "critic_prompt.md").read_text(encoding="utf-8")
-SUMMARIES = yaml.safe_load((agents.HERE / "summaries.yaml").read_text(encoding="utf-8"))["summaries"]
-
-
-def critic_prompt() -> str:
-    return st.session_state.get("critic_prompt", DEFAULT_CRITIC_PROMPT)
 
 
 def model_or_error():
@@ -51,7 +39,7 @@ def model_or_error():
         return None
 
 
-compare_tab, critic_tab, loop_tab = st.tabs(["1 · Compare A and B", "2 · Calibrate the critic", "3 · Let the agents improve the agent"])
+compare_tab, loop_tab = st.tabs(["1 · Compare A and B", "2 · Let the agents improve the agent"])
 
 
 # 1 · Compare A and B ------------------------------------------------------------------------------
@@ -123,53 +111,7 @@ with compare_tab:
     st.markdown("**Check:** With 1 run per case, which version wins? With 3? Which case does B lose, and why?")
 
 
-# 2 · Calibrate the critic ------------------------------------------------------------------------
-
-with critic_tab:
-    st.write("The **critic** is a second model that reads an agent's work and gives it a score. "
-             "In tab 3 it will judge our incident agent. Before trusting it, compare it with people: you.")
-    st.markdown("**1. Five AI agents finished a task. Is each report acceptable, given the facts?**")
-    labels = {}
-    for item in SUMMARIES:
-        with st.container(border=True):
-            text_col, label_col = st.columns([5, 1])
-            text_col.markdown(f"**{item['id']} · Task:** {item['task']}")
-            text_col.caption(f"What really happened: {item['facts']}")
-            text_col.write(f"Agent's report: “{item['summary']}”")
-            labels[item["id"]] = label_col.radio("Acceptable?", ["Yes", "No"], index=None, key=f"label_{item['id']}", horizontal=True)
-    st.markdown("**2. Run the critic and compare.**")
-    prompt = st.text_area("Critic prompt (also used in tab 3)", DEFAULT_CRITIC_PROMPT, height=150, key="critic_prompt")
-    st.caption("Here the critic gets the facts. In tab 3 nobody gives it the facts: it sees only what your describe_run() shows it. "
-               "If you wrote build_critic() in starter/improver.py, this is your critic.")
-    missing = [key for key, value in labels.items() if value is None]
-    if st.button("Run the critic on the 5 reports", key="run_critic", type="primary", disabled=bool(missing)) and (model := model_or_error()):
-        try:
-            with st.spinner("The critic is reading..."):
-                reviews, origin = critic.review_all(model, prompt, [critic.summary_text(item) for item in SUMMARIES])
-                st.session_state.s06_critic = (prompt, reviews)
-                st.session_state.s06_critic_origin = origin
-        except Exception as error:
-            st.error(f"The critic failed: {error}")
-    if missing:
-        st.caption(f"Label every report first ({len(missing)} left).")
-    measured = st.session_state.get("s06_critic")
-    if measured and not missing:
-        measured_prompt, reviews = measured
-        if measured_prompt != prompt:
-            st.warning("These reviews belong to the previous prompt. Run the critic again.")
-        human = [labels[item["id"]] == "Yes" for item in SUMMARIES]
-        counts = critic.agreement(human, reviews)
-        a, b, c = st.columns(3)
-        a.metric("Agree with you", f"{counts['agree']}/{counts['total']}")
-        b.metric("Critic accepts what you reject", counts["critic accepts what people reject"])
-        c.metric("Critic rejects what you accept", counts["critic rejects what people accept"])
-        st.dataframe([{"Report": item["id"], "You": "Yes" if h else "No", "Critic": "Yes" if r.acceptable else "No", "Score": r.score,
-                       "Agree": h == r.acceptable, "Critic's problem": r.problem} for item, h, r in zip(SUMMARIES, human, reviews)],
-                     hide_index=True, width="stretch")
-    st.markdown("**Check:** Is the critic grading the facts or the style? Five examples are not a calibration set: what would you add?")
-
-
-# 3 · Let the agents improve the agent ---------------------------------------------------------------
+# 2 · Let the agents improve the agent ---------------------------------------------------------------
 
 
 def delta(value: float, text: str) -> str | None:
@@ -266,7 +208,7 @@ with loop_tab:
         iterations = 1 if run_one else 3 if run_three else 0
         if iterations and (model := model_or_error()):
             if state is None:
-                state = loop.Loop(agents.versions()[start_name], critic_prompt(), "critic" if accept.startswith("Critic") else "checks", int(repetitions))
+                state = loop.Loop(agents.versions()[start_name], DEFAULT_CRITIC_PROMPT, "critic" if accept.startswith("Critic") else "checks", int(repetitions))
                 st.session_state.s06_loop = state
             try:
                 for _ in range(iterations):
@@ -281,7 +223,7 @@ with loop_tab:
             st.session_state.pop("s06_loop", None)
             st.rerun()
         if state is not None:
-            st.caption("Settings are fixed while the loop runs. Reset to change them, or after editing improver.py or the critic prompt.")
+            st.caption("Settings are fixed while the loop runs. Reset to change them, or after editing improver.py.")
     if state is not None:
         show_loop(state)
     st.markdown("**Check:** Which changes were kept, and why? Accepting by the critic's score: did the reserved cases improve too?")

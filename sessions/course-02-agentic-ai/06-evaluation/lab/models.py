@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class Review(BaseModel):
-    """What the critic returns about one run (or one report, in tab 2)."""
+    """What the critic returns about one run."""
 
     acceptable: bool
     score: int = Field(ge=1, le=5, description="1 bad, 5 excellent")

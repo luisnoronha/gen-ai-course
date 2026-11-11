@@ -130,11 +130,10 @@ def test_reference_decision():
     assert ref.decide([C("x", 3, 3, 3, 3)], 100, 100).adopt is False
 
 
-def test_critic_and_agreement():
-    items = [{"task": "t", "facts": "f", "summary": "Incident resolved."}, {"task": "t", "facts": "f", "summary": "Restarted order-gateway-2. Resolved."}]
-    reviews, origin = critic.review_all(MODEL, "prompt", [critic.summary_text(item) for item in items])
+def test_critic_reviews_every_text():
+    reviews, origin = critic.review_all(MODEL, "prompt", ["Status: resolved.", "Restarted order-gateway-2. Resolved."])
     assert origin == "default"
-    assert critic.agreement([False, True], reviews)["agree"] == 2
+    assert [r.acceptable for r in reviews] == [False, True]
 
 
 def test_critic_sees_only_the_agents_words_until_improver_is_written():
@@ -164,7 +163,7 @@ def test_loop_can_accept_by_critic_score():
     assert state.who["proposer agent"] == "default"
 
 
-def test_app_three_tabs():
+def test_app_two_tabs():
     from streamlit.testing.v1 import AppTest
     at = AppTest.from_file(str(LAB / "app.py"), default_timeout=120)
     at.session_state["model"] = MODEL
@@ -174,11 +173,7 @@ def test_app_three_tabs():
     at.button(key="run_suite").click().run()
     assert not at.exception
     assert len(at.session_state["s06_results"]) == 4
-    for item in ("R1", "R2", "R3", "R4", "R5"):
-        at.radio(key=f"label_{item}").set_value("No")
-    at.run()
-    at.button(key="run_critic").click().run()
-    assert not at.exception
+    assert len(at.tabs) == 2
     at.number_input(key="loop_reps").set_value(1)
     at.button(key="loop_one").click().run()
     assert not at.exception
