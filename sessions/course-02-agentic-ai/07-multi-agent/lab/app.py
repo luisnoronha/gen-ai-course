@@ -8,21 +8,71 @@ from meridian.lab import board, ui
 from team import Team, runbook, students_orchestrator, students_pipeline, use_solutions
 from world import INCIDENTS
 
-GUIDE = """
-**The incident room.** Five agents, one incident. Watch who works, who talks to whom, and what they do.
+GUIDE = {
+    "Exercise 1 · Pipeline (45 min)": """
+**Goal:** write the on-call runbook in code, and see where a fixed order breaks.
+You work in tab **1 · Pipeline** and in the file `starter/pipeline.py`.
 
-**1 · Pipeline** — you fix the order in code (`starter/pipeline.py`).
-- Write the runbook: network finds the cause, remediation fixes it.
-- Run INC-1, then INC-2. On INC-2, what did remediation do? Who knew it was a bad idea?
-- Add the database specialist. Run both again and compare in **Every run**.
+**1 · Write the runbook** · 10 min
+- Open `starter/pipeline.py` and read the text at the top: the runbook and how to talk to an agent.
+- Write `run_pipeline`: the steps of the runbook, in its order. Each step sends a message to one agent.
 
-**2 · Orchestrator** — an agent decides whom to ask (`starter/orchestrator.py`).
-- Build the orchestrator: its tools are the other agents.
-- Run both incidents. Do network and database work at the same time?
-- Compare with your pipeline: result, calls, tokens, seconds.
+**2 · Run the easy incident** · 5 min
+- Tab **1 · Pipeline** → click **INC-1 · A network change** → click **Run**.
+- Watch the cards light up. Read the messages under them, top to bottom.
+- At the end, compare **The team reports** with **The gateway really is**.
 
-**Demo** — the trainer runs it: a person and a reviewer in the loop.
-"""
+**3 · Run the hard incident** · 5 min
+- Click **INC-2 · Site A's network is failing** → click **Run**.
+- Compare the two results again.
+- In the messages: what did Remediation do? Which card says **Not used**?
+
+**4 · Fix your pipeline** · 15 min
+- Change `starter/pipeline.py` so the team gets INC-2 right.
+- Save the file and click **Run** again. No need to restart the app.
+
+**5 · Compare** · 10 min
+- Run **INC-1** again with your new pipeline.
+- Open the table **Every run** at the bottom of the page. Compare your two INC-1 runs: model calls, tokens, seconds.
+
+**Questions to discuss**
+1. On INC-2, every agent did its own job well. So who failed?
+2. Who in the team knew that site B could not be used? Did that reach Remediation?
+3. Your fix made INC-2 work. What did it cost on INC-1?
+4. Tomorrow a new incident needs another specialist. What do you have to change?
+""",
+    "Exercise 2 · Orchestrator (55 min)": """
+**Goal:** replace your fixed order with an agent that decides whom to ask, and when.
+You work in tab **2 · Orchestrator** and in the file `starter/orchestrator.py`. You may use an AI assistant.
+
+**1 · Read** · 5 min
+- Open `starter/orchestrator.py` and read the text at the top: what `build_orchestrator` must return, and the example tool.
+
+**2 · Give the orchestrator its team** · 10 min
+- One tool per agent it may call.
+- The docstring of each tool is what the orchestrator reads to decide when to use it. Write it with care.
+
+**3 · Write its instructions** · 15 min
+- In `INSTRUCTIONS`: its job, whom to ask, what Remediation must receive, when to stop.
+- You must be able to explain every line, even if an AI wrote it.
+
+**4 · Run the hard incident** · 10 min
+- Tab **2 · Orchestrator** → click **INC-2 · Site A's network is failing** → click **Run**.
+- Watch the cards: do **Network** and **Database** light up at the same time?
+- Read the message from **Orchestrator** to **Remediation**: what does it contain?
+- Wrong result? Change the instructions or the tools, save, click **Run** again.
+
+**5 · Run the easy incident and compare** · 15 min
+- Click **INC-1 · A network change** → click **Run**.
+- In **Every run**, compare the orchestrator with your pipeline on both incidents: result, model calls, tokens, seconds.
+
+**Questions to discuss**
+1. Did Network and Database work at the same time? How many seconds did that save?
+2. Which line of your instructions made the right information reach Remediation?
+3. On INC-1, which cost more: the pipeline or the orchestrator? Why?
+4. When would you choose a pipeline, and when an orchestrator?
+""",
+}
 
 NAMES = {"pipeline": "Pipeline", "orchestrator": "Orchestrator", "network": "Network", "database": "Database",
          "remediation": "Remediation", "reviewer": "Reviewer", "on-call": "On-call (you)", "team": "Team", "world": "Systems"}

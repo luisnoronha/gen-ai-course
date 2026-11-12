@@ -31,7 +31,7 @@ def get_model() -> Any:
     return model
 
 
-def page(title: str, guide: str, tab_title: str | None = None) -> None:
+def page(title: str, guide: str | dict[str, str], tab_title: str | None = None) -> None:
     """Wide page, title on the left and the 'What to try' guide on the right."""
     st.set_page_config(page_title=tab_title or title, layout="wide")
     title_column, guide_column = st.columns([5, 1], vertical_alignment="center")
@@ -41,8 +41,13 @@ def page(title: str, guide: str, tab_title: str | None = None) -> None:
 
 
 @st.dialog("What to try", width="large")
-def _guide(text: str) -> None:
-    st.markdown(text)
+def _guide(guide: str | dict[str, str]) -> None:
+    """A guide is markdown, or {tab title: markdown} for one tab per exercise."""
+    if isinstance(guide, str):
+        st.markdown(guide)
+        return
+    for tab, text in zip(st.tabs(list(guide)), guide.values()):
+        tab.markdown(text)
 
 
 def controls(groups: dict[str, dict[str, str]], caption: str = "They apply to every run.",
