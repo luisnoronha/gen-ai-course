@@ -57,6 +57,32 @@ def test_lab_solutions_runs_the_reference_without_touching_starter(monkeypatch):
     assert (T.STARTER / "orchestrator.py").read_text(encoding="utf-8") == before
 
 
+def test_an_agent_that_goes_round_in_circles_does_not_stop_the_team(solutions):
+    from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart
+    from pydantic_ai.models.function import FunctionModel
+
+    normal = scripted().function
+
+    def looping(messages, info):
+        instructions = next((m.instructions for m in messages if isinstance(m, ModelRequest) and m.instructions), "") or ""
+        if instructions.startswith("You are the database specialist"):
+            return ModelResponse(parts=[ToolCallPart("search_tickets", {"text": "maintenance"})])
+        return normal(messages, info)
+
+    team = run(T.Team(FunctionModel(looping), INC1), T.students_pipeline)
+    assert team.error is None, team.error
+    assert team.cards["database"]["status"] == "error" and "stopped after" in team.cards["database"]["activity"]
+    assert team.cards["remediation"]["status"] == "done"
+    assert sum(m["kind"] == "tool" and m["from"] == "database" for m in team.feed) == T.MAX_STEPS
+
+
+def test_every_tool_call_is_on_the_board():
+    team = run(T.Team(scripted(), INC2), T.runbook)
+    tools = [m["text"] for m in team.feed if m["kind"] == "tool"]
+    assert any(text.startswith("check_link order-gateway") for text in tools)
+    assert any(text.startswith("gateway_state") for text in tools)
+
+
 def test_starters_say_they_are_not_written():
     for pattern in (T.students_pipeline, T.students_orchestrator):
         team = run(T.Team(scripted(), INC1), pattern)

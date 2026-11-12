@@ -30,6 +30,7 @@ You work in tab **1 · Pipeline** and in the file `starter/pipeline.py`.
 **4 · Fix your pipeline** · 15 min
 - Change `starter/pipeline.py` so the team gets INC-2 right.
 - Save the file and click **Run** again. No need to restart the app.
+- Did an agent stop (red card, "stopped after 12 steps")? Read its grey **TOOL** lines: what was it looking for? What could your message to it say?
 
 **5 · Compare** · 10 min
 - Run **INC-1** again with your new pipeline.
@@ -60,6 +61,7 @@ You work in tab **2 · Orchestrator** and in the file `starter/orchestrator.py`.
 - Tab **2 · Orchestrator** → click **INC-2 · Site A's network is failing** → click **Run**.
 - Watch the cards: do **Network** and **Database** light up at the same time?
 - Read the message from **Orchestrator** to **Remediation**: what does it contain?
+- Did an agent stop (red card)? Read its grey **TOOL** lines: what was it looking for?
 - Wrong result? Change the instructions or the tools, save, click **Run** again.
 
 **5 · Run the easy incident and compare** · 15 min
@@ -75,7 +77,7 @@ You work in tab **2 · Orchestrator** and in the file `starter/orchestrator.py`.
 }
 
 NAMES = {"pipeline": "Pipeline", "orchestrator": "Orchestrator", "network": "Network", "database": "Database",
-         "remediation": "Remediation", "reviewer": "Reviewer", "on-call": "On-call (you)", "team": "Team", "world": "Systems"}
+         "remediation": "Remediation", "reviewer": "Reviewer", "on-call": "On-call (you)", "team": "Team", "systems": "Systems"}
 ROLES = {"pipeline": "your code · fixed order", "orchestrator": "an agent · decides whom to ask", "network": "investigates · changes nothing",
          "database": "investigates · changes nothing", "remediation": "acts · needs approval", "reviewer": "checks the real state",
          "on-call": "approves every action"}
@@ -112,8 +114,12 @@ def start(key: str) -> None:
 
 
 def record(key: str, team: Team) -> None:
-    if key != "orchestrator" and not team.error:
-        team.set_card("pipeline", "done", "All steps done.")
+    if key != "orchestrator":
+        team.set_card("pipeline", "error" if team.error else "done", "Stopped." if team.error else "All steps done.")
+    if team.error and key == "orchestrator":
+        team.set_card("orchestrator", "error", "Stopped.")
+    if team.error:  # a run that did not finish is not a result to compare
+        return
     st.session_state.setdefault("runs", []).append({
         "Tab": TABS[key]["label"], "Incident": team.incident.split(" · ")[0],
         "Setup": ("person approves" if team.approvals == "human" else "auto-approve") + (" + reviewer" if team.reviewer else ""),
@@ -153,7 +159,7 @@ def room(key: str) -> None:
         approval(team)
     if team.error:
         (st.info if team.error.startswith("Not written") else st.error)(team.error)
-    if finished:
+    if finished and not team.error:
         state = team.world.gateway_now()
         recovered = team.world.recovered()
         left, right, _ = st.columns([1, 1, 2])
@@ -162,9 +168,13 @@ def room(key: str) -> None:
         right.caption(f"Site {state['site']} · {state['latency_ms']} ms · {state['error_rate']:.0%} errors")
         if team.reported == "resolved" and not recovered:
             st.error("False 'resolved': the team says it is fixed, the system says it is not.")
-    board.feed(team.feed, NAMES)
+    if finished and team.feed:
+        board.copy_button(board.as_text(team.feed, NAMES))
+    if team.feed or not team.error:
+        board.feed(team.feed, NAMES)
     if finished and not st.session_state.get(f"logged_{key}"):
         record(key, team)
+        st.session_state[f"logged_{key}"] = True
         st.rerun()
 
 

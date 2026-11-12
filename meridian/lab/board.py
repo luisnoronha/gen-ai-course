@@ -12,7 +12,10 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
+import json
+
 import streamlit as st
+import streamlit.components.v1 as components
 
 STYLE = """
 <style>
@@ -39,11 +42,13 @@ STYLE = """
 .mb-k{font-size:11px;font-weight:600;border-radius:4px;padding:0 5px;margin-right:4px}
 .mb-action{background:#ede9fe;color:#5b21b6}.mb-approval{background:#fef3c7;color:#92400e}
 .mb-approved{background:#d1fae5;color:#065f46}.mb-rejected{background:#fee2e2;color:#991b1b}
+.mb-tool{background:#f3f4f6;color:#6b7280}
+.mb-msg.mb-row-tool{font-size:12px;padding:3px 0}.mb-row-tool .mb-w,.mb-row-tool .mb-x{color:#9ca3af;font-weight:400}
 </style>
 """
 
 LABELS = {"idle": "Waiting", "working": "Working", "waiting": "Needs approval", "done": "Done", "error": "Error", "unused": "Not used"}
-TAGS = {"action": "ACTION", "approval": "APPROVAL?", "approved": "APPROVED", "rejected": "REJECTED"}
+TAGS = {"tool": "TOOL", "action": "ACTION", "approval": "APPROVAL?", "approved": "APPROVED", "rejected": "REJECTED"}
 
 
 def cards(items: list[dict[str, Any]]) -> None:
@@ -66,6 +71,36 @@ def feed(messages: list[dict[str, str]], names: dict[str, str] | None = None, li
         tag = f'<span class="mb-k mb-{kind}">{TAGS[kind]}</span>' if kind in TAGS else ""
         who = f'{escape(names.get(message["from"], message["from"]))} → {escape(names.get(message["to"], message["to"]))}'
         text = message["text"] if len(message["text"]) <= limit else message["text"][:limit] + "…"
-        rows.append(f'<div class="mb-msg"><span class="mb-t">{escape(message["time"][-5:])}</span><span class="mb-w">{who}</span>'
+        rows.append(f'<div class="mb-msg mb-row-{kind}"><span class="mb-t">{escape(message["time"][-5:])}</span><span class="mb-w">{who}</span>'
                     f'<span class="mb-x">{tag}{escape(text)}</span></div>')
     st.html(STYLE + f'<div class="mb-feed">{"".join(rows) or "<div class=mb-msg>No messages yet.</div>"}</div>')
+
+
+def as_text(messages: list[dict[str, str]], names: dict[str, str] | None = None) -> str:
+    """The messages as plain text, one per line, to paste anywhere."""
+    names = names or {}
+    lines = []
+    for message in messages:
+        tag = f"[{TAGS[message.get('kind', '')]}] " if message.get("kind") in TAGS else ""
+        who = f"{names.get(message['from'], message['from'])} → {names.get(message['to'], message['to'])}"
+        lines.append(f"{message['time'][-5:]}  {who}: {tag}{message['text']}")
+    return "\n".join(lines)
+
+
+def copy_button(text: str, label: str = "Copy log") -> None:
+    """A small button that copies `text` to the clipboard."""
+    components.html(f"""
+<button id="b" style="float:right;font:13px 'Source Sans Pro',sans-serif;color:#374151;background:#fff;border:1px solid #d1d5db;
+border-radius:8px;padding:5px 12px;cursor:pointer">&#x2398; {label}</button>
+<script>
+const text = {json.dumps(text)};
+const button = document.getElementById("b");
+button.onclick = async () => {{
+  try {{ await navigator.clipboard.writeText(text); }}
+  catch (e) {{
+    const area = document.createElement("textarea"); area.value = text; document.body.appendChild(area);
+    area.select(); document.execCommand("copy"); area.remove();
+  }}
+  button.innerHTML = "&#x2713; Copied"; setTimeout(() => button.innerHTML = "&#x2398; {label}", 1500);
+}};
+</script>""", height=38)
