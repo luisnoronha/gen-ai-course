@@ -1,11 +1,11 @@
-"""Exercise 2 — The commander: an agent that orchestrates the other agents.
+"""Exercise 2 — The orchestrator: an agent that orchestrates the other agents.
 
 In the pipeline, you fixed the order in code. Here an agent decides: whom to ask, what to ask, in which
 order, and when it knows enough to act.
 
-Write build_commander(model). It returns:
+Write build_orchestrator(model). It returns:
 - a PydanticAI Agent with deps_type=Team and output_type=Outcome (both from lab/team.py);
-- one tool per agent the commander may call. A tool can call another agent:
+- one tool per agent the orchestrator may call. A tool can call another agent:
 
       async def ask_network(ctx: RunContext[Team], question: str) -> str:
           \"\"\"Ask the network specialist ...\"\"\"
@@ -19,8 +19,8 @@ Then, in tab 2: run INC-1 and INC-2. Watch the board: who works when? Compare wi
 Hints:
 - When the model calls two tools in the same step, they run at the same time. Do network and database
   work in parallel on the board?
-- The commander cannot read or change any system: only its agents can. Its tools are the agents.
-- Remediation knows only what the commander sends it.
+- The orchestrator cannot read or change any system: only its agents can. Its tools are the agents.
+- Remediation knows only what the orchestrator sends it.
 
 You may use an AI assistant to write this file. Then read it: you must be able to explain each tool and
 each line of the instructions.
@@ -40,5 +40,5 @@ INSTRUCTIONS = """\
 """
 
 
-def build_commander(model) -> Agent[Team, Outcome]:
-    raise NotImplementedError("starter/commander.py")
+def build_orchestrator(model) -> Agent[Team, Outcome]:
+    raise NotImplementedError("starter/orchestrator.py")

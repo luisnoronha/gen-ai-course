@@ -61,7 +61,7 @@ def scripted(delay: float = 0.0) -> FunctionModel:
             state = [p.content for p in returns if p.tool_name == "gateway_state"][-1]
             ok = state["error_rate"] < 0.01 and state["latency_ms"] < 20
             return answer(recovered=ok, reason="Healthy." if ok else f"{state['error_rate']:.0%} errors on site {state['site']}: reference-db site B refuses connections (maintenance MRX-4790).")
-        # the commander
+        # the orchestrator
         if "ask_network" not in done:
             return call(("ask_network", {"question": "What causes the gateway latency?"}), ("ask_database", {"question": "Is reference-db healthy? Planned work?"}))
         if "ask_remediation" not in done:

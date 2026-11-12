@@ -2,7 +2,7 @@
 
     from meridian.lab import board
     board.cards([{"name": "Network", "role": "investigates", "status": "working", "activity": "Reading logs"}, ...])
-    board.feed([{"time": "10:21", "from": "commander", "to": "network", "text": "...", "kind": "message"}, ...])
+    board.feed([{"time": "10:21", "from": "orchestrator", "to": "network", "text": "...", "kind": "message"}, ...])
 
 Status: idle, working, waiting, done, error, unused.
 """

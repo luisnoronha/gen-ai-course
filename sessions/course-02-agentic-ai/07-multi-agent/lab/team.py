@@ -8,7 +8,7 @@ Agents (the lab gives you these four):
 
 You write how they work together:
 - starter/pipeline.py:  a fixed sequence, in code.
-- starter/commander.py: an agent that decides whom to ask, and when.
+- starter/orchestrator.py: an agent that decides whom to ask, and when.
 
 Team.ask(name, message) sends a message to one agent and returns its answer as text. Everything an agent does
 appears live on the board: who is working, what it reads, what it asks the on-call to approve.
@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
+import os
 import sys
 import threading
 import time
@@ -32,11 +33,18 @@ from pydantic_ai.usage import UsageLimits
 from world import HERE, World
 
 STARTER = HERE.parent / "starter"
+SOLUTIONS = HERE.parents[3] / "private" / "course-02-agentic-ai" / "reference" / "session-07"
 APPROVAL_TIMEOUT_S = 300
 
 
+def use_solutions() -> bool:
+    """Trainer only: LAB_SOLUTIONS=1 runs the solutions instead of starter/, without touching starter/."""
+    return os.environ.get("LAB_SOLUTIONS") == "1" and SOLUTIONS.is_dir()
+
+
 def load_starter(name: str):
-    spec = importlib.util.spec_from_file_location(f"s07_{name}", STARTER / f"{name}.py")
+    folder = SOLUTIONS if use_solutions() else STARTER
+    spec = importlib.util.spec_from_file_location(f"s07_{name}", folder / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[f"s07_{name}"] = module
     spec.loader.exec_module(module)
@@ -64,7 +72,7 @@ class Review(BaseModel):
 
 
 class Outcome(BaseModel):
-    """What the commander reports at the end."""
+    """What the orchestrator reports at the end."""
 
     status: Literal["resolved", "unresolved"]
     root_cause: str
@@ -348,11 +356,11 @@ async def students_pipeline(team: Team) -> None:
     await load_starter("pipeline").run_pipeline(team)
 
 
-async def students_commander(team: Team) -> None:
-    commander = load_starter("commander").build_commander(team.model)
-    team.sender = "commander"
-    team.set_card("commander", "working", "Reading the incident…")
-    result = await commander.run(team.brief, deps=team, usage_limits=UsageLimits(request_limit=40))
+async def students_orchestrator(team: Team) -> None:
+    orchestrator = load_starter("orchestrator").build_orchestrator(team.model)
+    team.sender = "orchestrator"
+    team.set_card("orchestrator", "working", "Reading the incident…")
+    result = await orchestrator.run(team.brief, deps=team, usage_limits=UsageLimits(request_limit=40))
     with team._lock:
         usage = result.usage
         team.requests += usage.requests
@@ -360,4 +368,4 @@ async def students_commander(team: Team) -> None:
     team.outcome = result.output
     if isinstance(result.output, Outcome):
         team.reported = result.output.status
-    team.set_card("commander", "done", render(result.output))
+    team.set_card("orchestrator", "done", render(result.output))

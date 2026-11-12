@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from meridian.lab import board, ui
-from team import Team, runbook, students_commander, students_pipeline
+from team import Team, runbook, students_orchestrator, students_pipeline, use_solutions
 from world import INCIDENTS
 
 GUIDE = """
@@ -16,30 +16,32 @@ GUIDE = """
 - Run INC-1, then INC-2. On INC-2, what did remediation do? Who knew it was a bad idea?
 - Add the database specialist. Run both again and compare in **Every run**.
 
-**2 · Commander** — an agent decides whom to ask (`starter/commander.py`).
-- Build the commander: its tools are the other agents.
+**2 · Orchestrator** — an agent decides whom to ask (`starter/orchestrator.py`).
+- Build the orchestrator: its tools are the other agents.
 - Run both incidents. Do network and database work at the same time?
 - Compare with your pipeline: result, calls, tokens, seconds.
 
 **Demo** — the trainer runs it: a person and a reviewer in the loop.
 """
 
-NAMES = {"pipeline": "Pipeline", "commander": "Commander", "network": "Network", "database": "Database",
+NAMES = {"pipeline": "Pipeline", "orchestrator": "Orchestrator", "network": "Network", "database": "Database",
          "remediation": "Remediation", "reviewer": "Reviewer", "on-call": "On-call (you)", "team": "Team", "world": "Systems"}
-ROLES = {"pipeline": "your code · fixed order", "commander": "an agent · decides whom to ask", "network": "investigates · changes nothing",
+ROLES = {"pipeline": "your code · fixed order", "orchestrator": "an agent · decides whom to ask", "network": "investigates · changes nothing",
          "database": "investigates · changes nothing", "remediation": "acts · needs approval", "reviewer": "checks the real state",
          "on-call": "approves every action"}
 
 TABS = {
     "pipeline": {"label": "1 · Pipeline", "pattern": students_pipeline, "agents": ["pipeline", "network", "database", "remediation"],
                  "intro": "The order is fixed in your code: `starter/pipeline.py`."},
-    "commander": {"label": "2 · Commander", "pattern": students_commander, "agents": ["commander", "network", "database", "remediation"],
-                  "intro": "An agent decides whom to ask and when: `starter/commander.py`."},
+    "orchestrator": {"label": "2 · Orchestrator", "pattern": students_orchestrator, "agents": ["orchestrator", "network", "database", "remediation"],
+                  "intro": "An agent decides whom to ask and when: `starter/orchestrator.py`."},
     "demo": {"label": "Demo · Human in the loop", "pattern": runbook, "agents": ["pipeline", "network", "database", "remediation", "on-call", "reviewer"],
              "intro": "The runbook pipeline (network → remediation). Add a person and a reviewer to the loop."},
 }
 
 ui.page("Multi-Agent Lab · The incident room", GUIDE)
+if use_solutions():
+    st.caption("Running the solutions (LAB_SOLUTIONS=1), not starter/.")
 
 
 def start(key: str) -> None:
@@ -52,7 +54,7 @@ def start(key: str) -> None:
     team = Team(model, st.session_state[f"incident_{key}"],
                 approvals="human" if demo and st.session_state.get("human") else "auto",
                 reviewer=demo and bool(st.session_state.get("reviewer")))
-    if key != "commander":
+    if key != "orchestrator":
         team.set_card("pipeline", "working", "Running the steps in order…")
     st.session_state[f"team_{key}"] = team
     st.session_state[f"logged_{key}"] = False
@@ -60,7 +62,7 @@ def start(key: str) -> None:
 
 
 def record(key: str, team: Team) -> None:
-    if key != "commander" and not team.error:
+    if key != "orchestrator" and not team.error:
         team.set_card("pipeline", "done", "All steps done.")
     st.session_state.setdefault("runs", []).append({
         "Tab": TABS[key]["label"], "Incident": team.incident.split(" · ")[0],

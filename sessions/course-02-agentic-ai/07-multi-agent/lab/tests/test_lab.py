@@ -24,7 +24,7 @@ REFERENCE = REPO / "private/course-02-agentic-ai/reference/session-07"
 
 @pytest.fixture
 def solutions():
-    names = ("pipeline.py", "commander.py")
+    names = ("pipeline.py", "orchestrator.py")
     saved = {name: (T.STARTER / name).read_text(encoding="utf-8") for name in names}
     for name in names:
         shutil.copy(REFERENCE / name, T.STARTER / name)
@@ -49,28 +49,36 @@ def test_runbook_works_on_inc1_and_fails_on_inc2():
     assert [m["kind"] for m in second.feed].count("approved") == 1
 
 
+def test_lab_solutions_runs_the_reference_without_touching_starter(monkeypatch):
+    before = (T.STARTER / "orchestrator.py").read_text(encoding="utf-8")
+    monkeypatch.setenv("LAB_SOLUTIONS", "1")
+    team = run(T.Team(scripted(), INC2), T.students_orchestrator)
+    assert team.error is None and team.world.recovered()
+    assert (T.STARTER / "orchestrator.py").read_text(encoding="utf-8") == before
+
+
 def test_starters_say_they_are_not_written():
-    for pattern in (T.students_pipeline, T.students_commander):
+    for pattern in (T.students_pipeline, T.students_orchestrator):
         team = run(T.Team(scripted(), INC1), pattern)
         assert team.error and team.error.startswith("Not written")
 
 
-def test_reference_pipeline_and_commander(solutions):
-    for pattern in (T.students_pipeline, T.students_commander):
+def test_reference_pipeline_and_orchestrator(solutions):
+    for pattern in (T.students_pipeline, T.students_orchestrator):
         for incident in INCIDENTS:
             team = run(T.Team(scripted(), incident), pattern)
             assert team.error is None, team.error
             assert team.world.recovered(), (pattern.__name__, incident, team.world.gateway_now())
             assert {"network", "database", "remediation"} <= set(team.cards)
-    commander = run(T.Team(scripted(), INC2), T.students_commander)
-    assert commander.outcome and commander.cards["commander"]["status"] == "done"
-    assert commander.requests > 0 and commander.tokens > 0
+    orchestrator = run(T.Team(scripted(), INC2), T.students_orchestrator)
+    assert orchestrator.outcome and orchestrator.cards["orchestrator"]["status"] == "done"
+    assert orchestrator.requests > 0 and orchestrator.tokens > 0
 
 
 def test_specialists_work_in_parallel(solutions):
     team = T.Team(scripted(delay=0.3), INC2)
     seen = set()
-    thread = team.start(T.students_commander)
+    thread = team.start(T.students_orchestrator)
     while thread.is_alive():
         working = {name for name, card in team.cards.items() if card["status"] == "working"}
         if {"network", "database"} <= working:
@@ -111,7 +119,7 @@ def test_app_runs_every_tab(solutions):
     at.run()
     assert not at.exception
     assert len(at.tabs) == 3
-    for key in ("pipeline", "commander", "demo"):
+    for key in ("pipeline", "orchestrator", "demo"):
         at.button(key=f"run_{key}").click().run()
         team = at.session_state[f"team_{key}"]
         for _ in range(200):

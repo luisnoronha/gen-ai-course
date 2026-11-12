@@ -5,7 +5,7 @@ One incident, five agents. You watch them work live: who is busy, who talks to w
 - **Network** and **Database** investigate. They change nothing.
 - **Remediation** acts. Every action needs the on-call's approval.
 - **Reviewer** checks the real state at the end.
-- **You** decide how they work together: a fixed pipeline, or a commander agent.
+- **You** decide how they work together: a fixed pipeline, or an orchestrator agent.
 
 ## Run the lab
 
@@ -27,11 +27,11 @@ Needs `OPENAI_API_KEY` in the repository's `.env`. Click **What to try** (top ri
 | Tab | File | What you write |
 |---|---|---|
 | 1 · Pipeline | `pipeline.py` | The agents in a fixed order, in code. |
-| 2 · Commander | `commander.py` | An agent whose tools are the other agents. It decides whom to ask and when. AI help allowed. |
+| 2 · Orchestrator | `orchestrator.py` | An agent whose tools are the other agents. It decides whom to ask and when. AI help allowed. |
 
 The **Demo** tab is for the trainer: a person approves each action, and a reviewer checks the result.
 
-The enunciado and hints are at the top of each file. Compare every run in the table **Every run** (result, model calls, tokens, seconds).
+The task and the hints are at the top of each file. Compare every run in the table **Every run** (result, model calls, tokens, seconds).
 
 ## Files
 
