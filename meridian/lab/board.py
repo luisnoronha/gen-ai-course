@@ -9,10 +9,9 @@ Status: idle, working, waiting, done, error, unused.
 
 from __future__ import annotations
 
+import json
 from html import escape
 from typing import Any
-
-import json
 
 import streamlit as st
 import streamlit.components.v1 as components

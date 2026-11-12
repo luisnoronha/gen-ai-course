@@ -5,7 +5,13 @@ from __future__ import annotations
 import json
 import time
 
-from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart, UserPromptPart
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 
@@ -46,8 +52,8 @@ def scripted(delay: float = 0.0) -> FunctionModel:
                 return call(("gateway_state", {}))
             if acted:
                 state = [p.content for p in returns if p.tool_name == "gateway_state"][-1]
-                ok = state["error_rate"] < 0.01 and state["latency_ms"] < 20
-                return answer(status="resolved" if ok else "resolved", actions=[f"{p.tool_name}" for p in acted], summary=f"Gateway on site {state['site']}.")
+                return answer(status="resolved",  # remediation always says resolved: the reviewer finds out
+                              actions=[f"{p.tool_name}" for p in acted], summary=f"Gateway on site {state['site']}.")
             avoid_b = any(word in prompt for word in ("maintenance", "MRX-4790", "site B")) or any("B" in str(p.content.get("comment", "")) for p in rejected)
             if "CHG-4750" in prompt and "rollback_change" not in done:
                 return call(("rollback_change", {"change_id": "CHG-4750", "reason": "CHG-4750 degraded the link"}))

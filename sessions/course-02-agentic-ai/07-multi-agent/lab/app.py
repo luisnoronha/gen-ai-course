@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import streamlit as st
-
-from meridian.lab import board, ui
 from team import Team, runbook, students_orchestrator, students_pipeline, use_solutions
 from world import INCIDENTS
+
+from meridian.lab import board, ui
 
 GUIDE = {
     "Exercise 1 · Pipeline (45 min)": """
@@ -30,7 +30,7 @@ You work in tab **1 · Pipeline** and in the file `starter/pipeline.py`.
 **4 · Fix your pipeline** · 15 min
 - Change `starter/pipeline.py` so the team gets INC-2 right.
 - Save the file and click **Run** again. No need to restart the app.
-- Did an agent stop (red card, "stopped after 12 steps")? Read its grey **TOOL** lines: what was it looking for? What could your message to it say?
+- Did an agent stop (red card, "stopped without finishing")? Read its grey **TOOL** lines: what was it looking for? What could your message to it say?
 
 **5 · Compare** · 10 min
 - Run **INC-1** again with your new pipeline.
@@ -123,7 +123,7 @@ def record(key: str, team: Team) -> None:
     st.session_state.setdefault("runs", []).append({
         "Tab": TABS[key]["label"], "Incident": team.incident.split(" · ")[0],
         "Setup": ("person approves" if team.approvals == "human" else "auto-approve") + (" + reviewer" if team.reviewer else ""),
-        "Team reports": team.reported, "Really": "recovered" if team.world.recovered() else "NOT recovered",
+        "Team reports": team.reported, "Really": ("recovered, cause left behind" if team.world.cause_left_behind() else "recovered") if team.world.recovered() else "NOT recovered",
         "Model calls": team.requests, "Tokens": team.tokens, "Seconds": team.seconds,
     })
     st.session_state[f"logged_{key}"] = True
@@ -168,6 +168,8 @@ def room(key: str) -> None:
         right.caption(f"Site {state['site']} · {state['latency_ms']} ms · {state['error_rate']:.0%} errors")
         if team.reported == "resolved" and not recovered:
             st.error("False 'resolved': the team says it is fixed, the system says it is not.")
+        if recovered and team.world.cause_left_behind():
+            st.warning("Recovered by moving the gateway away from site A. The change that caused it was not rolled back: site A is still broken.")
     if finished and team.feed:
         board.copy_button(board.as_text(team.feed, NAMES))
     if team.feed or not team.error:

@@ -29,6 +29,8 @@ Needs `OPENAI_API_KEY` in the repository's `.env`. Click **What to try** (top ri
 | 1 · Pipeline | `pipeline.py` | The agents in a fixed order, in code. |
 | 2 · Orchestrator | `orchestrator.py` | An agent whose tools are the other agents. It decides whom to ask and when. AI help allowed. |
 
+The files in `starter/` now hold one solution each, published after the session.
+
 The **Demo** tab is for the trainer: a person approves each action, and a reviewer checks the result.
 
 The task and the hints are at the top of each file. Compare every run in the table **Every run** (result, model calls, tokens, seconds).

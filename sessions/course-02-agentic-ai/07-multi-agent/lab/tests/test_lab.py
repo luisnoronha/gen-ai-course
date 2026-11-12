@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import shutil
 import sys
-import threading
 import time
 from pathlib import Path
 
@@ -14,9 +13,9 @@ LAB = Path(__file__).resolve().parents[1]
 REPO = LAB.parents[3]
 sys.path.insert(0, str(LAB))
 sys.path.insert(0, str(LAB / "tests"))
-import team as T  # noqa: E402
-from fake import scripted  # noqa: E402
-from world import INCIDENTS  # noqa: E402
+import team as T
+from fake import scripted
+from world import INCIDENTS
 
 INC1, INC2 = list(INCIDENTS)
 REFERENCE = REPO / "private/course-02-agentic-ai/reference/session-07"
@@ -71,9 +70,35 @@ def test_an_agent_that_goes_round_in_circles_does_not_stop_the_team(solutions):
 
     team = run(T.Team(FunctionModel(looping), INC1), T.students_pipeline)
     assert team.error is None, team.error
-    assert team.cards["database"]["status"] == "error" and "stopped after" in team.cards["database"]["activity"]
+    assert team.cards["database"]["status"] == "error" and "stopped without finishing" in team.cards["database"]["activity"]
     assert team.cards["remediation"]["status"] == "done"
-    assert sum(m["kind"] == "tool" and m["from"] == "database" for m in team.feed) == T.MAX_STEPS
+    database_tools = [m["text"] for m in team.feed if m["kind"] == "tool" and m["from"] == "database"]
+    assert len(database_tools) == T.MAX_STEPS
+    assert sum("refused" in text for text in database_tools) == T.MAX_STEPS - T.MAX_TOOL_CALLS
+
+
+def test_an_invented_component_name_is_refused_and_the_agent_goes_on():
+    from pydantic_ai.messages import (
+        ModelRequest,
+        ModelResponse,
+        RetryPromptPart,
+        ToolCallPart,
+    )
+    from pydantic_ai.models.function import FunctionModel
+
+    normal = scripted().function
+
+    def inventing(messages, info):
+        instructions = next((m.instructions for m in messages if isinstance(m, ModelRequest) and m.instructions), "") or ""
+        retried = any(isinstance(p, RetryPromptPart) for m in messages for p in m.parts)
+        if instructions.startswith("You are the database specialist") and not retried:
+            return ModelResponse(parts=[ToolCallPart("read_metrics", {"component": "reference-db-site-B"})])
+        return normal(messages, info)
+
+    team = T.Team(FunctionModel(inventing), INC1)
+    import asyncio
+    answer = asyncio.run(team.ask("database", "Is there planned work?"))
+    assert "MRX-4790" in answer and team.cards["database"]["status"] == "done"
 
 
 def test_every_tool_call_is_on_the_board():
@@ -83,7 +108,27 @@ def test_every_tool_call_is_on_the_board():
     assert any(text.startswith("gateway_state") for text in tools)
 
 
-def test_starters_say_they_are_not_written():
+def test_world_knows_when_the_cause_was_left_behind():
+    def failover(world, site):
+        world.failover_gateway(site, world.approve("failover_gateway", f"site-{site}", "test", "test"), "test")
+
+    world = T.World(INC1)
+    failover(world, "C")
+    assert world.recovered() and world.cause_left_behind()  # moved away, CHG-4750 still breaks site A
+    world.call("rollback_change", "CHG-4750", idempotency_key="t", confirmation_ref=world.approve("rollback_change", "CHG-4750", "test", "test"))
+    assert not world.cause_left_behind()
+    world = T.World(INC2)
+    failover(world, "B")
+    failover(world, "A")
+    assert not world.recovered()  # back on site A: its network is still failing
+
+
+def test_starters_say_they_are_not_written(tmp_path, monkeypatch):
+    for name in ("pipeline", "orchestrator"):
+        (tmp_path / f"{name}.py").write_text(
+            "async def run_pipeline(team):\n    raise NotImplementedError('starter/pipeline.py')\n"
+            "def build_orchestrator(model):\n    raise NotImplementedError('starter/orchestrator.py')\n", encoding="utf-8")
+    monkeypatch.setattr(T, "STARTER", tmp_path)
     for pattern in (T.students_pipeline, T.students_orchestrator):
         team = run(T.Team(scripted(), INC1), pattern)
         assert team.error and team.error.startswith("Not written")

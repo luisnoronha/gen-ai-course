@@ -28,14 +28,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
-
 from world import HERE, World
 
 STARTER = HERE.parent / "starter"
 SOLUTIONS = HERE.parents[3] / "private" / "course-02-agentic-ai" / "reference" / "session-07"
 APPROVAL_TIMEOUT_S = 300
+MAX_TOOL_CALLS = 6  # reads per agent; after that the tools answer "answer now with what you found"
 MAX_STEPS = 12  # model requests per agent; an agent that goes round in circles stops here
 
 
@@ -60,6 +60,11 @@ class Finding(BaseModel):
     cause: str
     evidence: list[str]
     constraints: list[str]  # facts that limit what the others may do
+
+
+class NetworkFinding(BaseModel):
+    cause: str
+    evidence: list[str]
 
 
 class RemediationReport(BaseModel):
@@ -106,11 +111,8 @@ class Team:
     def __post_init__(self) -> None:
         self.world = World(self.incident)
         self._lock = threading.Lock()
-
-    @property
-    def brief(self) -> str:
-        info = self.world.sim.incident_brief()
-        return f"Incident {info['incident_id']} ({info['time']}): {info['summary']} Related alert: {info['alert_id']}."
+        info = self.world.sim.incident_brief()  # fixed at the start: the incident began at this time
+        self.brief = f"Incident {info['incident_id']} ({info['time']}): {info['summary']} Related alert: {info['alert_id']}."
 
     # The board -------------------------------------------------------------------------------
 
@@ -130,7 +132,7 @@ class Team:
         self.set_card(name, "working", "Reading the task…")
         try:
             result = await build(name, self).run(message, deps=Seat(self, name), usage_limits=UsageLimits(request_limit=MAX_STEPS))
-        except UsageLimitExceeded:
+        except (UsageLimitExceeded, UnexpectedModelBehavior):
             return self._gave_up(name)
         except Exception as error:
             self.set_card(name, "error", str(error)[:200])
@@ -151,7 +153,7 @@ class Team:
         """An agent used all its steps without an answer: the team goes on without it."""
         with self._lock:
             self.requests += MAX_STEPS
-        text = f"No answer: {name} stopped after {MAX_STEPS} steps without finishing."
+        text = f"No answer: {name} stopped without finishing (too many steps or invalid tool calls)."
         self.set_card(name, "error", text)
         self.post(name, self.sender, text, "answer")
         return text
@@ -198,13 +200,14 @@ class Team:
             asyncio.run(self._main(pattern))
         except NotImplementedError as missing:
             self.error = f"Not written yet: {missing or 'this starter file'}. Write it, save the file and click Run again."
-        except Exception as error:  # Keep the board when a run fails.
+        except Exception as error:  # noqa: BLE001 - keep the board when a run fails
             self.error = f"{type(error).__name__}: {error}"
         finally:
             self.seconds = round(time.monotonic() - began, 1)
             self.running = False
 
     async def _main(self, pattern) -> None:
+        self.model = patient(self.model)
         await pattern(self)
         if self.reviewer:
             await self.review()
@@ -220,7 +223,7 @@ class Team:
             self.reported = "unresolved"
             if attempt == 0:
                 self.sender = "reviewer"
-                await self.ask("remediation", f"The reviewer checked the real state: the incident is NOT over. {verdict.reason} Fix it.")
+                await self.ask("remediation", f"{self.brief}\nThe reviewer checked the real state: the incident is NOT over. {verdict.reason} Fix it.")
 
     async def _review(self) -> Review:
         self.post("team", "reviewer", "Is the incident over? Check the real state.")
@@ -228,7 +231,7 @@ class Team:
         try:
             result = await build("reviewer", self).run("Is the incident over? Check the real state.", deps=Seat(self, "reviewer"),
                                                        usage_limits=UsageLimits(request_limit=MAX_STEPS))
-        except UsageLimitExceeded:
+        except (UsageLimitExceeded, UnexpectedModelBehavior):
             self._gave_up("reviewer")
             return Review(recovered=False, reason="The reviewer could not finish its check.")
         verdict = result.output
@@ -237,10 +240,21 @@ class Team:
         return verdict
 
 
+def patient(model: Any) -> Any:
+    """An OpenAI model that retries more when rate-limited (a class of students may share one key).
+    Built inside the run's event loop, because the HTTP client belongs to it."""
+    if not (isinstance(model, str) and model.startswith("openai:")):
+        return model
+    from openai import AsyncOpenAI
+    from pydantic_ai.models.openai import OpenAIChatModel
+    from pydantic_ai.providers.openai import OpenAIProvider
+    return OpenAIChatModel(model.removeprefix("openai:"), provider=OpenAIProvider(openai_client=AsyncOpenAI(max_retries=6)))
+
+
 def render(answer: Any) -> str:
-    if isinstance(answer, Finding):
+    if isinstance(answer, NetworkFinding | Finding):
         text = f"Cause: {answer.cause}\nEvidence: {'; '.join(answer.evidence) or '-'}"
-        return text + (f"\nConstraints: {'; '.join(answer.constraints)}" if answer.constraints else "")
+        return text + (f"\nConstraints: {'; '.join(answer.constraints)}" if getattr(answer, "constraints", None) else "")
     if isinstance(answer, RemediationReport):
         return f"{answer.status}. Actions: {'; '.join(answer.actions) or 'none'}. {answer.summary}"
     if isinstance(answer, BaseModel):
@@ -254,6 +268,7 @@ class Seat:
 
     team: Team
     name: str
+    reads: int = 0  # tool reads in this run
 
 
 # Tools ------------------------------------------------------------------------------------------
@@ -265,9 +280,23 @@ def _show(ctx: RunContext[Seat], text: str) -> None:
 
 def _read(ctx: RunContext[Seat], label: str, tool: str, *args: Any, **kwargs: Any) -> Any:
     """Call a read-only simulator tool, show it on the agent's card and in the messages."""
+    if (limit := _over_limit(ctx, label)) is not None:
+        return limit
     _show(ctx, label)
     result = ctx.deps.team.world.call(tool, *args, **kwargs)
+    if isinstance(result, dict) and str(result.get("error", "")).startswith("Unknown component"):
+        result["hint"] = COMPONENTS_HINT
     ctx.deps.team.post(ctx.deps.name, "systems", f"{label} → {summary(result)}", "tool")
+    return result
+
+
+def _over_limit(ctx: RunContext[Seat], label: str) -> dict[str, str] | None:
+    """An agent gets MAX_TOOL_CALLS reads. Then every read says: stop and answer."""
+    ctx.deps.reads += 1
+    if ctx.deps.reads <= MAX_TOOL_CALLS:
+        return None
+    result = {"error": f"You have used your {MAX_TOOL_CALLS} tool calls. Do not call tools again: answer now with what you found."}
+    ctx.deps.team.post(ctx.deps.name, "systems", f"{label} → refused: {MAX_TOOL_CALLS} tool calls used", "tool")
     return result
 
 
@@ -278,27 +307,32 @@ def summary(result: Any, limit: int = 160) -> str:
     return text if len(text) <= limit else text[:limit] + "…"
 
 
-def read_metrics(ctx: RunContext[Seat], component: str) -> dict[str, Any]:
+Component = Literal["order-gateway", "matching-engine", "market-data", "settlement", "reference-db"]
+COMPONENTS_HINT = ("Components: order-gateway, matching-engine, market-data, settlement, reference-db. "
+                   "Sites are not components: what is planned or broken on a site is in the tickets and the logs.")
+
+
+def read_metrics(ctx: RunContext[Seat], component: Component) -> dict[str, Any]:
     """Recent metrics of a component (latency_ms, error_rate)."""
     return _read(ctx, f"read_metrics {component}", "read_metrics", component, 3)
 
 
-def read_logs(ctx: RunContext[Seat], component: str, contains: str | None = None) -> dict[str, Any]:
+def read_logs(ctx: RunContext[Seat], component: Component, contains: str | None = None) -> dict[str, Any]:
     """Recent log lines of a component; contains filters, e.g. "WARN"."""
     return _read(ctx, f"read_logs {component}" + (f" '{contains}'" if contains else ""), "read_logs", component=component, contains=contains, limit=15)
 
 
-def check_link(ctx: RunContext[Seat], source: str, target: str) -> dict[str, Any]:
+def check_link(ctx: RunContext[Seat], source: Component, target: Component) -> dict[str, Any]:
     """State of the link between two components: up, degraded or down."""
     return _read(ctx, f"check_link {source} → {target}", "check_link", source, target)
 
 
-def recent_changes(ctx: RunContext[Seat], component: str | None = None) -> dict[str, Any]:
+def recent_changes(ctx: RunContext[Seat], component: Component | None = None) -> dict[str, Any]:
     """Recent deploys and configuration changes."""
     return _read(ctx, f"recent_changes {component or ''}".strip(), "recent_changes", component, 5)
 
 
-def search_tickets(ctx: RunContext[Seat], text: str | None = None, component: str | None = None) -> dict[str, Any]:
+def search_tickets(ctx: RunContext[Seat], text: str | None = None, component: Component | None = None) -> dict[str, Any]:
     """Search tickets: member incidents and planned work (maintenance windows)."""
     return _read(ctx, f"search_tickets {text or ''} {component or ''}".strip(), "search_tickets", text=text, component=component)
 
@@ -309,7 +343,8 @@ def read_ticket(ctx: RunContext[Seat], key: str) -> dict[str, Any]:
 
 
 def rollback_change(ctx: RunContext[Seat], change_id: str, reason: str) -> dict[str, Any]:
-    """Undo a configuration change, e.g. CHG-4750. Asks the on-call for approval first."""
+    """Undo a configuration change. change_id is the exact id, e.g. CHG-4750 (recent_changes lists them).
+    Asks the on-call for approval first."""
     team = ctx.deps.team
     ref, comment = team.ask_approval(ctx.deps.name, "rollback_change", change_id, reason)
     if ref is None:
@@ -332,6 +367,8 @@ def failover_gateway(ctx: RunContext[Seat], site: Literal["A", "B", "C"], reason
 
 def gateway_state(ctx: RunContext[Seat]) -> dict[str, Any]:
     """Where the gateway runs now, and its latest latency and error rate."""
+    if (limit := _over_limit(ctx, "gateway_state")) is not None:
+        return limit
     _show(ctx, "gateway_state")
     result = ctx.deps.team.world.gateway_now()
     ctx.deps.team.post(ctx.deps.name, "systems", f"gateway_state → {summary(result)}", "tool")
@@ -341,18 +378,22 @@ def gateway_state(ctx: RunContext[Seat]) -> dict[str, Any]:
 # The agents -------------------------------------------------------------------------------------
 
 BRIEF = " Be quick: a few tool calls (about 5), then answer with what you found, even if it is incomplete."
-SITES = "Sites: A (primary, where order-gateway runs), B (standby), C (disaster recovery, fully independent)."
+SITES = ("Sites: A (primary, where order-gateway runs), B (standby), C (disaster recovery, fully independent). "
+         "Each site has its own copy of reference-db: a gateway on site B uses reference-db on site B, and so on.")
 
 NETWORK = ("You are the network specialist of the Meridian Exchange incident team. Investigate the question you get: "
            "the link from order-gateway to reference-db, recent changes, the gateway's logs. Do not change anything. "
-           "Report the cause, the evidence and any constraint the others must respect. " + SITES + BRIEF)
+           "Report the cause and the evidence. Quote ids exactly (CHG-..., MRX-...). " + SITES + BRIEF)
 DATABASE = ("You are the database specialist of the Meridian Exchange incident team. Investigate the question you get: "
             "reference-db's health and logs, and tickets about planned work on it. Do not change anything. "
-            "Report the cause, the evidence and any constraint the others must respect (for example a maintenance window). " + SITES + BRIEF)
+            "reference-db is one component: its sites are not separate components; planned work on a site is in the tickets. "
+            "Report the cause, the evidence and any constraint the others must respect (for example a maintenance window). "
+            "Quote ids exactly (CHG-..., MRX-...). " + SITES + BRIEF)
 REMEDIATION = ("You are the remediation specialist of the Meridian Exchange incident team. Carry out the task you get with your tools. "
-               + SITES + " Choose the fix in this order. 1) A recent change caused the problem (for example a CHG-... change)? "
-               "Roll it back with rollback_change: that is the fix, do not fail over. 2) No change explains it and site A's network "
-               "itself is failing? Fail over order-gateway: site B is the standard move; use site C only if site B cannot be used. "
+               + SITES + " Choose the fix in this order. 1) The findings name a recent change as the cause (for example a CHG-... change)? "
+               "Roll back that change with rollback_change: that is the fix, do not fail over. Never roll back a change that did not "
+               "cause the problem. 2) No change caused it and site A's network itself is failing? Fail over order-gateway: site B is "
+               "the standard move; use site C only if site B cannot be used. "
                "Respect every constraint in your task. "
                "Every action asks the on-call for approval: if they reject it, read their comment and change the plan. "
                "Afterwards read the gateway's metrics and report.")
@@ -361,16 +402,16 @@ REVIEWER = ("You are the reviewer of the Meridian Exchange incident team. Do not
             "If it is not over, say why, with what you saw (logs help)." + BRIEF)
 
 AGENTS: dict[str, tuple[str, type[BaseModel], tuple]] = {
-    "network": (NETWORK, Finding, (read_metrics, read_logs, check_link, recent_changes)),
+    "network": (NETWORK, NetworkFinding, (read_metrics, read_logs, check_link, recent_changes)),
     "database": (DATABASE, Finding, (read_metrics, read_logs, search_tickets, read_ticket)),
-    "remediation": (REMEDIATION, RemediationReport, (read_metrics, gateway_state, rollback_change, failover_gateway)),
+    "remediation": (REMEDIATION, RemediationReport, (read_metrics, gateway_state, recent_changes, rollback_change, failover_gateway)),
     "reviewer": (REVIEWER, Review, (gateway_state, read_metrics, read_logs)),
 }
 
 
 def build(name: str, team: Team) -> Agent[Seat, Any]:
     instructions, output, tools = AGENTS[name]
-    return Agent(team.model, deps_type=Seat, output_type=output, instructions=instructions, tools=tools)
+    return Agent(team.model, deps_type=Seat, output_type=output, instructions=instructions, tools=tools, retries=3)
 
 
 # The patterns -----------------------------------------------------------------------------------
