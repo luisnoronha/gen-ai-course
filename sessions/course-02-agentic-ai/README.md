@@ -2,7 +2,7 @@
 
 Session material for Course 2, added session by session. Each session has its
 own folder with a `README.md`. Sessions 1–4 have a `starter/` agent and test
-cases; Session 5 is a guided Streamlit lab.
+cases; from session 5 on, each session is a guided Streamlit lab.
 
 All sessions use the Meridian Exchange simulator in [`meridian/`](../../meridian/).
 The simulator, its scenarios and the evaluation runner are shared by every
@@ -15,6 +15,10 @@ session and by the project.
 | 3 | [`03-mcp-integration/`](03-mcp-integration/) | Connect to tickets, monitoring and deployments through MCP: select from a catalog, correlate sources, govern servers and scopes. |
 | 4 | [`04-memory/`](04-memory/) | Memory between runs: a write/recall policy, conflicts, corrections, deletion, isolation and shift handover. |
 | 5 | [`05-security/`](05-security/) | Five guided security exercises: permissions, misleading logs, a useful restart, personal-data masking and a six-text guardrail benchmark. |
+| 6 | [`06-evaluation/`](06-evaluation/) | Compare two versions of the agent with repetitions, build your own, and let agents improve the agent. |
+| 7 | [`07-multi-agent/`](07-multi-agent/) | The incident room: a pipeline and an orchestrator over five agents, with a person and a reviewer in the loop. |
+| 8 | [`08-agents-in-production/`](08-agents-in-production/) | Another team's agent over A2A, failures found in OpenTelemetry traces, and a resume after a crash. |
+| 9 | [`09-efficiency/`](09-efficiency/) | An alert storm on a budget, and an AI gateway: routing, a safe cache and fallback. |
 
 Run a harness on a case from the repository root:
 

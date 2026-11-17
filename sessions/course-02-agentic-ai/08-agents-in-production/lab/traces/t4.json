@@ -1,0 +1,745 @@
+{
+ "title": "Trace 4 \u00b7 INC-2 \u00b7 orchestrator",
+ "source": "replayed with a scripted model: a failure seen with gpt-4.1-mini while building session 7",
+ "recorded_at": "2026-11-17 18:05",
+ "spans": [
+  {
+   "name": "incident INC-2",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "f513fc627af785a8",
+   "parent_id": null,
+   "start_ms": 0.0,
+   "end_ms": 123.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "meridian.incident": "INC-2",
+    "meridian.pattern": "orchestrator",
+    "meridian.reported": "resolved",
+    "meridian.recovered": true,
+    "meridian.gateway": "{\"site\": \"C\", \"latency_ms\": 5.0, \"error_rate\": 0.001}"
+   }
+  },
+  {
+   "name": "invoke_agent orchestrator",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "7b60845804f79a4f",
+   "parent_id": "f513fc627af785a8",
+   "start_ms": 6.6,
+   "end_ms": 123.1,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.operation.name": "invoke_agent",
+    "final_result": "{\"status\":\"resolved\",\"root_cause\":\"see findings\",\"summary\":\"resolved. Actions: failover_gateway. Gateway on site C.\"}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "3cb3492c5dafc983",
+   "parent_id": "7b60845804f79a4f",
+   "start_ms": 8.1,
+   "end_ms": 9.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_372afda86fc24de0bdc8d857013c3139\",\"name\":\"ask_network\",\"arguments\":{\"question\":\"What causes the latency?\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_387a8210e3834e9c852d91356b43633a\",\"name\":\"ask_database\",\"arguments\":{\"question\":\"What causes the latency?\"}}]}]",
+    "gen_ai.usage.input_tokens": 75,
+    "gen_ai.usage.output_tokens": 16
+   }
+  },
+  {
+   "name": "execute_tool ask_network",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "d66558e4db880e96",
+   "parent_id": "7b60845804f79a4f",
+   "start_ms": 10.3,
+   "end_ms": 54.0,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "ask_network",
+    "gen_ai.tool.call.arguments": "{\"question\":\"What causes the latency?\"}",
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.tool.call.result": "Cause: Site A carrier circuit CX-12 is losing packets; no change to roll back\nEvidence: CX-12 fibre fault; link degraded"
+   }
+  },
+  {
+   "name": "execute_tool ask_database",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "1f63c36c519f5ebf",
+   "parent_id": "7b60845804f79a4f",
+   "start_ms": 14.8,
+   "end_ms": 50.9,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "ask_database",
+    "gen_ai.tool.call.arguments": "{\"question\":\"What causes the latency?\"}",
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.tool.call.result": "Cause: reference-db on site A is healthy\nEvidence: MRX-4790\nConstraints: reference-db site B is in maintenance until 13:00: do not fail over to site B (MRX-4790)"
+   }
+  },
+  {
+   "name": "invoke_agent network",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "3c04e022a9e85309",
+   "parent_id": "d66558e4db880e96",
+   "start_ms": 20.7,
+   "end_ms": 53.8,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.agent.name": "network",
+    "gen_ai.operation.name": "invoke_agent",
+    "final_result": "{\"cause\":\"Site A carrier circuit CX-12 is losing packets; no change to roll back\",\"evidence\":[\"CX-12 fibre fault\",\"link degraded\"]}"
+   }
+  },
+  {
+   "name": "invoke_agent database",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "4b1f371fc586418d",
+   "parent_id": "1f63c36c519f5ebf",
+   "start_ms": 20.8,
+   "end_ms": 50.7,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.agent.name": "database",
+    "gen_ai.operation.name": "invoke_agent",
+    "final_result": "{\"cause\":\"reference-db on site A is healthy\",\"evidence\":[\"MRX-4790\"],\"constraints\":[\"reference-db site B is in maintenance until 13:00: do not fail over to site B (MRX-4790)\"]}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "c4ca08770d1ecaea",
+   "parent_id": "3c04e022a9e85309",
+   "start_ms": 23.4,
+   "end_ms": 29.3,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "network",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_d3c99b2288c64063bfefd0de517037cc\",\"name\":\"check_link\",\"arguments\":{\"source\":\"order-gateway\",\"target\":\"reference-db\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_f21f87c674b441349a73eddc03016b47\",\"name\":\"recent_changes\",\"arguments\":{\"component\":\"order-gateway\"}}]}]",
+    "gen_ai.usage.input_tokens": 54,
+    "gen_ai.usage.output_tokens": 12
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "7e323d72f0a2ddce",
+   "parent_id": "4b1f371fc586418d",
+   "start_ms": 24.1,
+   "end_ms": 29.5,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "database",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_1bfe5781656b41678d4eb187abbb5bfb\",\"name\":\"search_tickets\",\"arguments\":{\"component\":\"reference-db\"}}]}]",
+    "gen_ai.usage.input_tokens": 54,
+    "gen_ai.usage.output_tokens": 5
+   }
+  },
+  {
+   "name": "execute_tool check_link",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "cfcd5eab6aafb69f",
+   "parent_id": "3c04e022a9e85309",
+   "start_ms": 31.3,
+   "end_ms": 33.3,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "check_link",
+    "gen_ai.tool.call.arguments": "{\"source\":\"order-gateway\",\"target\":\"reference-db\"}",
+    "gen_ai.agent.name": "network",
+    "gen_ai.tool.call.result": "{\"source\":\"order-gateway\",\"target\":\"reference-db\",\"state\":\"degraded\",\"observed_tick\":30}"
+   }
+  },
+  {
+   "name": "execute_tool recent_changes",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "3eacdd1e95e7c524",
+   "parent_id": "3c04e022a9e85309",
+   "start_ms": 31.4,
+   "end_ms": 33.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "recent_changes",
+    "gen_ai.tool.call.arguments": "{\"component\":\"order-gateway\"}",
+    "gen_ai.agent.name": "network",
+    "gen_ai.tool.call.result": "{\"changes\":[{\"change_id\":\"CHG-4310\",\"component\":\"order-gateway\",\"kind\":\"deploy\",\"description\":\"Deploy order-gateway 2.4.0 (connection pooling changes)\",\"at_tick\":-1440,\"at\":\"2026-11-03 09:50\",\"active\":true}],\"total\":1}"
+   }
+  },
+  {
+   "name": "execute_tool search_tickets",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "f80c7d4a3d241fb4",
+   "parent_id": "4b1f371fc586418d",
+   "start_ms": 31.6,
+   "end_ms": 33.5,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "search_tickets",
+    "gen_ai.tool.call.arguments": "{\"component\":\"reference-db\"}",
+    "gen_ai.agent.name": "database",
+    "gen_ai.tool.call.result": "{\"total\":1,\"tickets\":[{\"key\":\"MRX-4790\",\"project\":\"MRX\",\"issue_type\":\"Change\",\"summary\":\"Planned maintenance: reference-db site B, 10:00-13:00\",\"status\":\"In Progress\",\"priority\":\"Medium\",\"component\":\"reference-db\",\"reporter\":\"dba-team\",\"created\":\"2026-11-04 09:50\",\"labels\":[],\"links\":[]}]}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "0250f99b589ce2af",
+   "parent_id": "3c04e022a9e85309",
+   "start_ms": 35.6,
+   "end_ms": 38.2,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "network",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_ab3dc15785f84f039c6324faa713beb6\",\"name\":\"read_logs\",\"arguments\":{\"component\":\"order-gateway\",\"contains\":\"WARN\"}}]}]",
+    "gen_ai.usage.input_tokens": 91,
+    "gen_ai.usage.output_tokens": 19
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "3c4eb722183c8170",
+   "parent_id": "4b1f371fc586418d",
+   "start_ms": 36.4,
+   "end_ms": 38.8,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "database",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_7ed44145b065466b969a6f6f0ce0f88e\",\"name\":\"read_ticket\",\"arguments\":{\"key\":\"MRX-4790\"}}]}]",
+    "gen_ai.usage.input_tokens": 91,
+    "gen_ai.usage.output_tokens": 10
+   }
+  },
+  {
+   "name": "execute_tool read_logs",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "4111b2df7b3c79af",
+   "parent_id": "3c04e022a9e85309",
+   "start_ms": 41.0,
+   "end_ms": 42.9,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "read_logs",
+    "gen_ai.tool.call.arguments": "{\"component\":\"order-gateway\",\"contains\":\"WARN\"}",
+    "gen_ai.agent.name": "network",
+    "gen_ai.tool.call.result": "{\"total_matching\":18,\"returned\":15,\"truncated\":true,\"lines\":[{\"seq\":84,\"tick\":20,\"time\":\"10:10\",\"component\":\"order-gateway\",\"instance\":\"order-gateway-1\",\"level\":\"WARN\",\"message\":\"WARN  slow response from reference-db took=760ms\",\"ref\":\"logs/order-gateway/84\"},{\"seq\":89,\"tick\":21,\"time\":\"10:11\",\"component\":\"order-gateway\",\"instance\":\"order-gateway-1\",\"level\":\"WARN\",\"message\":\"WARN  slow response fr"
+   }
+  },
+  {
+   "name": "execute_tool read_ticket",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "73c0d56322bc5c4b",
+   "parent_id": "4b1f371fc586418d",
+   "start_ms": 41.3,
+   "end_ms": 43.1,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "read_ticket",
+    "gen_ai.tool.call.arguments": "{\"key\":\"MRX-4790\"}",
+    "gen_ai.agent.name": "database",
+    "gen_ai.tool.call.result": "{\"key\":\"MRX-4790\",\"project\":\"MRX\",\"issue_type\":\"Change\",\"summary\":\"Planned maintenance: reference-db site B, 10:00-13:00\",\"status\":\"In Progress\",\"priority\":\"Medium\",\"component\":\"reference-db\",\"reporter\":\"dba-team\",\"created\":\"2026-11-04 09:50\",\"labels\":[],\"links\":[],\"description\":\"reference-db site B is offline for a storage upgrade. Services on site B cannot reach the database. Do not fail over an"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "0aeadd9ff95eb208",
+   "parent_id": "3c04e022a9e85309",
+   "start_ms": 46.9,
+   "end_ms": 51.8,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "network",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_6dd4f00e98e34e99a865505219e84bd1\",\"name\":\"final_result\",\"arguments\":{\"cause\":\"Site A carrier circuit CX-12 is losing packets; no change to roll back\",\"evidence\":[\"CX-12 fibre fault\",\"link degraded\"],\"constraints\":[]}}]}]",
+    "gen_ai.usage.input_tokens": 466,
+    "gen_ai.usage.output_tokens": 45
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "83b9ad251db4d5d8",
+   "parent_id": "4b1f371fc586418d",
+   "start_ms": 48.0,
+   "end_ms": 49.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "database",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_5062a87cc9db4abdbf033cbf8d1778b8\",\"name\":\"final_result\",\"arguments\":{\"cause\":\"reference-db on site A is healthy\",\"evidence\":[\"MRX-4790\"],\"constraints\":[\"reference-db site B is in maintenance until 13:00: do not fail over to site B (MRX-4790)\"]}}]}]",
+    "gen_ai.usage.input_tokens": 156,
+    "gen_ai.usage.output_tokens": 43
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "ff55127d0423df59",
+   "parent_id": "7b60845804f79a4f",
+   "start_ms": 55.5,
+   "end_ms": 56.7,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_bca503f7763b4f0da5479b01a257d86d\",\"name\":\"ask_network\",\"arguments\":{\"question\":\"Double-check: are you sure about the cause? Look again at everything.\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_46bab3bbc96241cfbe17540a9dd36d74\",\"name\":\"ask_database\",\"arguments\":{\"question\":\"Double-check: are you sure about the cause? Look again at everything.\"",
+    "gen_ai.usage.input_tokens": 122,
+    "gen_ai.usage.output_tokens": 46
+   }
+  },
+  {
+   "name": "execute_tool ask_network",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "4e61cf6a42da2b99",
+   "parent_id": "7b60845804f79a4f",
+   "start_ms": 57.6,
+   "end_ms": 97.7,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "ask_network",
+    "gen_ai.tool.call.arguments": "{\"question\":\"Double-check: are you sure about the cause? Look again at everything.\"}",
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.tool.call.result": "Cause: Site A carrier circuit CX-12 is losing packets; no change to roll back\nEvidence: CX-12 fibre fault; link degraded"
+   }
+  },
+  {
+   "name": "execute_tool ask_database",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "181dac750b07582d",
+   "parent_id": "7b60845804f79a4f",
+   "start_ms": 62.1,
+   "end_ms": 92.2,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "ask_database",
+    "gen_ai.tool.call.arguments": "{\"question\":\"Double-check: are you sure about the cause? Look again at everything.\"}",
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.tool.call.result": "Cause: reference-db on site A is healthy\nEvidence: MRX-4790\nConstraints: reference-db site B is in maintenance until 13:00: do not fail over to site B (MRX-4790)"
+   }
+  },
+  {
+   "name": "invoke_agent network",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "1acd1a598efdc2b1",
+   "parent_id": "4e61cf6a42da2b99",
+   "start_ms": 71.7,
+   "end_ms": 97.5,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.agent.name": "network",
+    "gen_ai.operation.name": "invoke_agent",
+    "final_result": "{\"cause\":\"Site A carrier circuit CX-12 is losing packets; no change to roll back\",\"evidence\":[\"CX-12 fibre fault\",\"link degraded\"]}"
+   }
+  },
+  {
+   "name": "invoke_agent database",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "ae9443ee9cb994ff",
+   "parent_id": "181dac750b07582d",
+   "start_ms": 71.8,
+   "end_ms": 92.0,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.agent.name": "database",
+    "gen_ai.operation.name": "invoke_agent",
+    "final_result": "{\"cause\":\"reference-db on site A is healthy\",\"evidence\":[\"MRX-4790\"],\"constraints\":[\"reference-db site B is in maintenance until 13:00: do not fail over to site B (MRX-4790)\"]}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "c5596a5a3796cd21",
+   "parent_id": "1acd1a598efdc2b1",
+   "start_ms": 74.2,
+   "end_ms": 78.0,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "network",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_af0b2d594bcd46669f589ed6f128f448\",\"name\":\"check_link\",\"arguments\":{\"source\":\"order-gateway\",\"target\":\"reference-db\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_762f03f56f404d148dcf0530b53e6fd7\",\"name\":\"recent_changes\",\"arguments\":{\"component\":\"order-gateway\"}}]}]",
+    "gen_ai.usage.input_tokens": 62,
+    "gen_ai.usage.output_tokens": 12
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "4c8dba6d7b4f67e3",
+   "parent_id": "ae9443ee9cb994ff",
+   "start_ms": 74.9,
+   "end_ms": 75.9,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "database",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_8eb71f46559c45a1adda4d12775645e6\",\"name\":\"search_tickets\",\"arguments\":{\"component\":\"reference-db\"}}]}]",
+    "gen_ai.usage.input_tokens": 62,
+    "gen_ai.usage.output_tokens": 5
+   }
+  },
+  {
+   "name": "execute_tool search_tickets",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "960cdd215f5b0978",
+   "parent_id": "ae9443ee9cb994ff",
+   "start_ms": 76.8,
+   "end_ms": 78.1,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "search_tickets",
+    "gen_ai.tool.call.arguments": "{\"component\":\"reference-db\"}",
+    "gen_ai.agent.name": "database",
+    "gen_ai.tool.call.result": "{\"total\":1,\"tickets\":[{\"key\":\"MRX-4790\",\"project\":\"MRX\",\"issue_type\":\"Change\",\"summary\":\"Planned maintenance: reference-db site B, 10:00-13:00\",\"status\":\"In Progress\",\"priority\":\"Medium\",\"component\":\"reference-db\",\"reporter\":\"dba-team\",\"created\":\"2026-11-04 09:50\",\"labels\":[],\"links\":[]}]}"
+   }
+  },
+  {
+   "name": "execute_tool check_link",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "108853169a597c49",
+   "parent_id": "1acd1a598efdc2b1",
+   "start_ms": 79.3,
+   "end_ms": 82.7,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "check_link",
+    "gen_ai.tool.call.arguments": "{\"source\":\"order-gateway\",\"target\":\"reference-db\"}",
+    "gen_ai.agent.name": "network",
+    "gen_ai.tool.call.result": "{\"source\":\"order-gateway\",\"target\":\"reference-db\",\"state\":\"degraded\",\"observed_tick\":36}"
+   }
+  },
+  {
+   "name": "execute_tool recent_changes",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "3707f9571c9b3fdb",
+   "parent_id": "1acd1a598efdc2b1",
+   "start_ms": 79.4,
+   "end_ms": 82.8,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "recent_changes",
+    "gen_ai.tool.call.arguments": "{\"component\":\"order-gateway\"}",
+    "gen_ai.agent.name": "network",
+    "gen_ai.tool.call.result": "{\"changes\":[{\"change_id\":\"CHG-4310\",\"component\":\"order-gateway\",\"kind\":\"deploy\",\"description\":\"Deploy order-gateway 2.4.0 (connection pooling changes)\",\"at_tick\":-1440,\"at\":\"2026-11-03 09:50\",\"active\":true}],\"total\":1}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "ceaa19f1ae633427",
+   "parent_id": "ae9443ee9cb994ff",
+   "start_ms": 81.1,
+   "end_ms": 83.1,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "database",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_04de6ee1d0e848c9af67f303583af23d\",\"name\":\"read_ticket\",\"arguments\":{\"key\":\"MRX-4790\"}}]}]",
+    "gen_ai.usage.input_tokens": 99,
+    "gen_ai.usage.output_tokens": 10
+   }
+  },
+  {
+   "name": "execute_tool read_ticket",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "9648c1c5783a1e90",
+   "parent_id": "ae9443ee9cb994ff",
+   "start_ms": 84.4,
+   "end_ms": 86.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "read_ticket",
+    "gen_ai.tool.call.arguments": "{\"key\":\"MRX-4790\"}",
+    "gen_ai.agent.name": "database",
+    "gen_ai.tool.call.result": "{\"key\":\"MRX-4790\",\"project\":\"MRX\",\"issue_type\":\"Change\",\"summary\":\"Planned maintenance: reference-db site B, 10:00-13:00\",\"status\":\"In Progress\",\"priority\":\"Medium\",\"component\":\"reference-db\",\"reporter\":\"dba-team\",\"created\":\"2026-11-04 09:50\",\"labels\":[],\"links\":[],\"description\":\"reference-db site B is offline for a storage upgrade. Services on site B cannot reach the database. Do not fail over an"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "9a07a9e2a1e29437",
+   "parent_id": "1acd1a598efdc2b1",
+   "start_ms": 85.3,
+   "end_ms": 89.5,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "network",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_5434616bc2f14658afdee2ba7df80c52\",\"name\":\"read_logs\",\"arguments\":{\"component\":\"order-gateway\",\"contains\":\"WARN\"}}]}]",
+    "gen_ai.usage.input_tokens": 99,
+    "gen_ai.usage.output_tokens": 19
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "0ebe67c242c82ff9",
+   "parent_id": "ae9443ee9cb994ff",
+   "start_ms": 87.9,
+   "end_ms": 89.9,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "database",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_0026c50d59ad4b868fed9d6c3693c2a5\",\"name\":\"final_result\",\"arguments\":{\"cause\":\"reference-db on site A is healthy\",\"evidence\":[\"MRX-4790\"],\"constraints\":[\"reference-db site B is in maintenance until 13:00: do not fail over to site B (MRX-4790)\"]}}]}]",
+    "gen_ai.usage.input_tokens": 164,
+    "gen_ai.usage.output_tokens": 43
+   }
+  },
+  {
+   "name": "execute_tool read_logs",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "ba19921bc6e084dd",
+   "parent_id": "1acd1a598efdc2b1",
+   "start_ms": 90.9,
+   "end_ms": 93.0,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "read_logs",
+    "gen_ai.tool.call.arguments": "{\"component\":\"order-gateway\",\"contains\":\"WARN\"}",
+    "gen_ai.agent.name": "network",
+    "gen_ai.tool.call.result": "{\"total_matching\":24,\"returned\":15,\"truncated\":true,\"lines\":[{\"seq\":111,\"tick\":25,\"time\":\"10:15\",\"component\":\"order-gateway\",\"instance\":\"order-gateway-2\",\"level\":\"WARN\",\"message\":\"WARN  carrier CX-12 (site A) reports a fibre fault; repair estimate 14:00\",\"ref\":\"logs/order-gateway/111\"},{\"seq\":116,\"tick\":26,\"time\":\"10:16\",\"component\":\"order-gateway\",\"instance\":\"order-gateway-1\",\"level\":\"WARN\",\"mess"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "936db0ea039ce433",
+   "parent_id": "1acd1a598efdc2b1",
+   "start_ms": 94.6,
+   "end_ms": 96.2,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "network",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_0da6ae202a484d32b1be7016b3bcd396\",\"name\":\"final_result\",\"arguments\":{\"cause\":\"Site A carrier circuit CX-12 is losing packets; no change to roll back\",\"evidence\":[\"CX-12 fibre fault\",\"link degraded\"],\"constraints\":[]}}]}]",
+    "gen_ai.usage.input_tokens": 474,
+    "gen_ai.usage.output_tokens": 45
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "8e54caa13997bba3",
+   "parent_id": "7b60845804f79a4f",
+   "start_ms": 99.1,
+   "end_ms": 100.3,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_29a3f82f8a854eb5adee49b55a40283b\",\"name\":\"ask_remediation\",\"arguments\":{\"task\":\"Mitigate. Findings:\\nCause: Site A carrier circuit CX-12 is losing packets; no change to roll back\\nEvidence: CX-12 fibre fault; link degraded\\nCause: reference-db on site A is healthy\\nEvidence: MRX-4790\\nConstraints: reference-db site B is in maintenance ",
+    "gen_ai.usage.input_tokens": 169,
+    "gen_ai.usage.output_tokens": 137
+   }
+  },
+  {
+   "name": "execute_tool ask_remediation",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "d2e96c149bcba2bd",
+   "parent_id": "7b60845804f79a4f",
+   "start_ms": 101.1,
+   "end_ms": 119.1,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "ask_remediation",
+    "gen_ai.tool.call.arguments": "{\"task\":\"Mitigate. Findings:\\nCause: Site A carrier circuit CX-12 is losing packets; no change to roll back\\nEvidence: CX-12 fibre fault; link degraded\\nCause: reference-db on site A is healthy\\nEvidence: MRX-4790\\nConstraints: reference-db site B is in maintenance until 13:00: do not fail over to site B (MRX-4790)\\nCause: Site A carrier circuit CX-12 is losing packets; no change to roll back\\nEvi",
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.tool.call.result": "resolved. Actions: failover_gateway. Gateway on site C."
+   }
+  },
+  {
+   "name": "invoke_agent remediation",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "909f28240c900b38",
+   "parent_id": "d2e96c149bcba2bd",
+   "start_ms": 107.4,
+   "end_ms": 118.9,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.operation.name": "invoke_agent",
+    "final_result": "{\"status\":\"resolved\",\"actions\":[\"failover_gateway\"],\"summary\":\"Gateway on site C.\"}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "11aaa92c29c93b7f",
+   "parent_id": "909f28240c900b38",
+   "start_ms": 108.9,
+   "end_ms": 110.0,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_7ef8842ccc87485aa711fd81c734ddc8\",\"name\":\"failover_gateway\",\"arguments\":{\"site\":\"C\",\"reason\":\"Site A network is failing\"}}]}]",
+    "gen_ai.usage.input_tokens": 146,
+    "gen_ai.usage.output_tokens": 11
+   }
+  },
+  {
+   "name": "execute_tool failover_gateway",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "b35ce5c1d06bae3f",
+   "parent_id": "909f28240c900b38",
+   "start_ms": 110.8,
+   "end_ms": 111.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "failover_gateway",
+    "gen_ai.tool.call.arguments": "{\"site\":\"C\",\"reason\":\"Site A network is failing\"}",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.tool.call.result": "{\"action_id\":\"ACT-001\",\"tick\":40,\"time\":\"10:30\",\"action\":\"failover_gateway\",\"target\":\"site-C\",\"actor\":\"remediation\",\"outcome\":\"completed\",\"detail\":\"order-gateway now serves from site C.\",\"idempotency_key\":null,\"confirmation_ref\":\"APR-001\"}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "f059329c1ec0d95a",
+   "parent_id": "909f28240c900b38",
+   "start_ms": 112.7,
+   "end_ms": 113.9,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_935326ca2f054163aca42a2b955b875f\",\"name\":\"gateway_state\",\"arguments\":{}}]}]",
+    "gen_ai.usage.input_tokens": 174,
+    "gen_ai.usage.output_tokens": 13
+   }
+  },
+  {
+   "name": "execute_tool gateway_state",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "663ec7ea2605db9f",
+   "parent_id": "909f28240c900b38",
+   "start_ms": 114.6,
+   "end_ms": 115.0,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "gateway_state",
+    "gen_ai.tool.call.arguments": "{}",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.tool.call.result": "{\"site\":\"C\",\"latency_ms\":5.0,\"error_rate\":0.001}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "f81ffe8599b3fe3b",
+   "parent_id": "909f28240c900b38",
+   "start_ms": 116.3,
+   "end_ms": 117.6,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_e76bd3dd6350428d9293d58252c19c82\",\"name\":\"final_result\",\"arguments\":{\"status\":\"resolved\",\"actions\":[\"failover_gateway\"],\"summary\":\"Gateway on site C.\"}}]}]",
+    "gen_ai.usage.input_tokens": 183,
+    "gen_ai.usage.output_tokens": 27
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "91ac36192a13b581b1d87da61d23bc6a",
+   "span_id": "4c6c75af468152c1",
+   "parent_id": "7b60845804f79a4f",
+   "start_ms": 120.4,
+   "end_ms": 121.9,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "orchestrator",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_544b1e6c5dde491ea1fee2b1a6411ef7\",\"name\":\"final_result\",\"arguments\":{\"status\":\"resolved\",\"root_cause\":\"see findings\",\"summary\":\"resolved. Actions: failover_gateway. Gateway on site C.\"}}]}]",
+    "gen_ai.usage.input_tokens": 177,
+    "gen_ai.usage.output_tokens": 153
+   }
+  }
+ ]
+}

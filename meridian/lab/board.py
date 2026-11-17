@@ -14,7 +14,6 @@ from html import escape
 from typing import Any
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 STYLE = """
 <style>
@@ -42,12 +41,15 @@ STYLE = """
 .mb-action{background:#ede9fe;color:#5b21b6}.mb-approval{background:#fef3c7;color:#92400e}
 .mb-approved{background:#d1fae5;color:#065f46}.mb-rejected{background:#fee2e2;color:#991b1b}
 .mb-tool{background:#f3f4f6;color:#6b7280}
+.mb-checkpoint{background:#dbeafe;color:#1e40af}.mb-note{background:#e0e7ff;color:#3730a3}
+.mb-crash{background:#ef4444;color:#fff}.mb-msg.mb-row-crash .mb-x{color:#b91c1c;font-weight:600}
 .mb-msg.mb-row-tool{font-size:12px;padding:3px 0}.mb-row-tool .mb-w,.mb-row-tool .mb-x{color:#9ca3af;font-weight:400}
 </style>
 """
 
 LABELS = {"idle": "Waiting", "working": "Working", "waiting": "Needs approval", "done": "Done", "error": "Error", "unused": "Not used"}
-TAGS = {"tool": "TOOL", "action": "ACTION", "approval": "APPROVAL?", "approved": "APPROVED", "rejected": "REJECTED"}
+TAGS = {"tool": "TOOL", "action": "ACTION", "approval": "APPROVAL?", "approved": "APPROVED", "rejected": "REJECTED",
+        "checkpoint": "CHECKPOINT", "note": "YOUR CODE", "crash": "CRASH"}
 
 
 def cards(items: list[dict[str, Any]]) -> None:
@@ -88,11 +90,13 @@ def as_text(messages: list[dict[str, str]], names: dict[str, str] | None = None)
 
 def copy_button(text: str, label: str = "Copy log") -> None:
     """A small button that copies `text` to the clipboard."""
-    components.html(f"""
+    # The log holds model output: escape '</' so nothing in it can close the <script> tag.
+    data = json.dumps(text).replace("</", "<\\/")
+    st.iframe(f"""
 <button id="b" style="float:right;font:13px 'Source Sans Pro',sans-serif;color:#374151;background:#fff;border:1px solid #d1d5db;
 border-radius:8px;padding:5px 12px;cursor:pointer">&#x2398; {label}</button>
 <script>
-const text = {json.dumps(text)};
+const text = {data};
 const button = document.getElementById("b");
 button.onclick = async () => {{
   try {{ await navigator.clipboard.writeText(text); }}
@@ -103,3 +107,34 @@ button.onclick = async () => {{
   button.innerHTML = "&#x2713; Copied"; setTimeout(() => button.innerHTML = "&#x2398; {label}", 1500);
 }};
 </script>""", height=38)
+
+
+WATERFALL = """
+<style>
+.wf{border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:8px 12px;max-height:520px;overflow-y:auto;font-size:12px}
+.wf-row{display:flex;align-items:center;gap:10px;padding:2px 0;border-bottom:1px solid #f9fafb}
+.wf-l{flex:0 0 38%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#374151}
+.wf-t{flex:1;position:relative;height:14px;background:#f9fafb;border-radius:3px}
+.wf-b{position:absolute;top:2px;height:10px;border-radius:3px;min-width:2px}
+.wf-incident{background:#9ca3af}.wf-invoke_agent{background:#3b82f6}.wf-chat{background:#a78bfa}.wf-execute_tool{background:#d1d5db}
+.wf-error .wf-b{background:#ef4444}.wf-error .wf-l{color:#b91c1c;font-weight:600}
+.wf-agent .wf-l{font-weight:600;color:#111827}
+.wf-legend{display:flex;gap:14px;font-size:12px;color:#6b7280;margin:2px 0 6px}
+.wf-legend span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.wf-legend .a:before{background:#3b82f6}.wf-legend .c:before{background:#a78bfa}.wf-legend .t:before{background:#d1d5db}
+</style>
+"""
+
+
+def waterfall(rows: list[dict[str, Any]]) -> None:
+    """Spans as a waterfall. rows: label, depth, start, end, kind, detail (tooltip), error."""
+    total = max((r["end"] for r in rows), default=1) or 1
+    html = ['<div class="wf-legend"><span class="a">agent</span><span class="c">model call</span><span class="t">tool call</span></div><div class="wf">']
+    for r in rows:
+        left, width = 100 * r["start"] / total, max(100 * (r["end"] - r["start"]) / total, 0.3)
+        css = f"wf-row{' wf-error' if r.get('error') else ''}{' wf-agent' if r['kind'] == 'invoke_agent' else ''}"
+        html.append(f'<div class="{css}" title="{escape(r.get("detail", ""))}"><div class="wf-l" style="padding-left:{14 * r["depth"]}px">'
+                    f'{escape(r["label"])}</div><div class="wf-t"><div class="wf-b wf-{escape(r["kind"])}" '
+                    f'style="left:{left:.2f}%;width:{width:.2f}%"></div></div></div>')
+    html.append("</div>")
+    st.html(WATERFALL + "".join(html))

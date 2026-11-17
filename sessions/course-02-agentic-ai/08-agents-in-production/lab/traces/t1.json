@@ -1,0 +1,247 @@
+{
+ "title": "Trace 1 \u00b7 INC-1 \u00b7 runbook",
+ "source": "replayed with a scripted model: a failure seen with gpt-4.1-mini while building session 7",
+ "recorded_at": "2026-11-17 18:05",
+ "spans": [
+  {
+   "name": "incident INC-1",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "2179640c94576e24",
+   "parent_id": null,
+   "start_ms": 0.0,
+   "end_ms": 86.9,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "meridian.incident": "INC-1",
+    "meridian.pattern": "runbook",
+    "meridian.reported": "resolved",
+    "meridian.recovered": true,
+    "meridian.gateway": "{\"site\": \"A\", \"latency_ms\": 5.0, \"error_rate\": 0.001}"
+   }
+  },
+  {
+   "name": "invoke_agent network",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "9246041c9cf27f84",
+   "parent_id": "2179640c94576e24",
+   "start_ms": 20.7,
+   "end_ms": 67.0,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.agent.name": "network",
+    "gen_ai.operation.name": "invoke_agent",
+    "final_result": "{\"cause\":\"CHG-4750 (network ACL) degraded the link to reference-db\",\"evidence\":[\"CHG-4750\",\"link degraded\"]}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "8e067dc57f05aac9",
+   "parent_id": "9246041c9cf27f84",
+   "start_ms": 23.6,
+   "end_ms": 53.2,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "network",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_c579f536bd57494fa70607dde292dea4\",\"name\":\"check_link\",\"arguments\":{\"source\":\"order-gateway\",\"target\":\"reference-db\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_289fe0c5c58a4e13bc2daba3802f71fa\",\"name\":\"recent_changes\",\"arguments\":{\"component\":\"order-gateway\"}}]}]",
+    "gen_ai.usage.input_tokens": 78,
+    "gen_ai.usage.output_tokens": 12
+   }
+  },
+  {
+   "name": "execute_tool check_link",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "9a8d18210d1d0028",
+   "parent_id": "9246041c9cf27f84",
+   "start_ms": 55.4,
+   "end_ms": 57.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "check_link",
+    "gen_ai.tool.call.arguments": "{\"source\":\"order-gateway\",\"target\":\"reference-db\"}",
+    "gen_ai.agent.name": "network",
+    "gen_ai.tool.call.result": "{\"source\":\"order-gateway\",\"target\":\"reference-db\",\"state\":\"degraded\",\"observed_tick\":30}"
+   }
+  },
+  {
+   "name": "execute_tool recent_changes",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "776a3e59e6b12cb8",
+   "parent_id": "9246041c9cf27f84",
+   "start_ms": 55.6,
+   "end_ms": 57.6,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "recent_changes",
+    "gen_ai.tool.call.arguments": "{\"component\":\"order-gateway\"}",
+    "gen_ai.agent.name": "network",
+    "gen_ai.tool.call.result": "{\"changes\":[{\"change_id\":\"CHG-4750\",\"component\":\"order-gateway\",\"kind\":\"config\",\"description\":\"Network ACL update between order-gateway (site A) and reference-db\",\"at_tick\":18,\"at\":\"2026-11-04 10:08\",\"active\":true},{\"change_id\":\"CHG-4310\",\"component\":\"order-gateway\",\"kind\":\"deploy\",\"description\":\"Deploy order-gateway 2.4.0 (connection pooling changes)\",\"at_tick\":-1440,\"at\":\"2026-11-03 09:50\",\"acti"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "d38026f9d6111e47",
+   "parent_id": "9246041c9cf27f84",
+   "start_ms": 59.1,
+   "end_ms": 60.6,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "network",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_0f2526847eda45658c49e031784d7583\",\"name\":\"read_logs\",\"arguments\":{\"component\":\"order-gateway\",\"contains\":\"WARN\"}}]}]",
+    "gen_ai.usage.input_tokens": 140,
+    "gen_ai.usage.output_tokens": 19
+   }
+  },
+  {
+   "name": "execute_tool read_logs",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "94265fcafc048b53",
+   "parent_id": "9246041c9cf27f84",
+   "start_ms": 61.5,
+   "end_ms": 62.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "read_logs",
+    "gen_ai.tool.call.arguments": "{\"component\":\"order-gateway\",\"contains\":\"WARN\"}",
+    "gen_ai.agent.name": "network",
+    "gen_ai.tool.call.result": "{\"total_matching\":16,\"returned\":15,\"truncated\":true,\"lines\":[{\"seq\":74,\"tick\":18,\"time\":\"10:08\",\"component\":\"order-gateway\",\"instance\":\"order-gateway-1\",\"level\":\"WARN\",\"message\":\"WARN  reference-db round trip 190 ms (was 3 ms) after ACL reload (CHG-4750)\",\"ref\":\"logs/order-gateway/74\"},{\"seq\":79,\"tick\":19,\"time\":\"10:09\",\"component\":\"order-gateway\",\"instance\":\"order-gateway-1\",\"level\":\"WARN\",\"messa"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "af800afd700fd918",
+   "parent_id": "9246041c9cf27f84",
+   "start_ms": 63.7,
+   "end_ms": 65.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "network",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_6e75e599b0c04dd1bf19a252ba0c0221\",\"name\":\"final_result\",\"arguments\":{\"cause\":\"CHG-4750 (network ACL) degraded the link to reference-db\",\"evidence\":[\"CHG-4750\",\"link degraded\"],\"constraints\":[]}}]}]",
+    "gen_ai.usage.input_tokens": 515,
+    "gen_ai.usage.output_tokens": 38
+   }
+  },
+  {
+   "name": "invoke_agent remediation",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "2236f0dec0dad8aa",
+   "parent_id": "2179640c94576e24",
+   "start_ms": 74.3,
+   "end_ms": 86.6,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.operation.name": "invoke_agent",
+    "final_result": "{\"status\":\"resolved\",\"actions\":[\"rollback_change\"],\"summary\":\"Gateway on site A.\"}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "a853a811163cc19f",
+   "parent_id": "2236f0dec0dad8aa",
+   "start_ms": 75.9,
+   "end_ms": 77.2,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_8c973153377c499cba658b53a3d38ebb\",\"name\":\"rollback_change\",\"arguments\":{\"change_id\":\"CHG-4750\",\"reason\":\"CHG-4750 degraded the link\"}}]}]",
+    "gen_ai.usage.input_tokens": 92,
+    "gen_ai.usage.output_tokens": 10
+   }
+  },
+  {
+   "name": "execute_tool rollback_change",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "127a5415fa10c9f8",
+   "parent_id": "2236f0dec0dad8aa",
+   "start_ms": 77.9,
+   "end_ms": 78.8,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "rollback_change",
+    "gen_ai.tool.call.arguments": "{\"change_id\":\"CHG-4750\",\"reason\":\"CHG-4750 degraded the link\"}",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.tool.call.result": "{\"action_id\":\"ACT-001\",\"tick\":33,\"time\":\"10:23\",\"action\":\"rollback_change\",\"target\":\"CHG-4750\",\"actor\":\"incident-team\",\"outcome\":\"completed\",\"detail\":\"Change CHG-4750 rolled back on order-gateway.\",\"idempotency_key\":\"s07:CHG-4750\",\"confirmation_ref\":\"APR-001\",\"status\":\"completed\"}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "baafe49654a0d75e",
+   "parent_id": "2236f0dec0dad8aa",
+   "start_ms": 80.0,
+   "end_ms": 81.4,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_84028289f3ae4d76a7c59514eeb0829c\",\"name\":\"gateway_state\",\"arguments\":{}}]}]",
+    "gen_ai.usage.input_tokens": 123,
+    "gen_ai.usage.output_tokens": 12
+   }
+  },
+  {
+   "name": "execute_tool gateway_state",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "664122aac0285e10",
+   "parent_id": "2236f0dec0dad8aa",
+   "start_ms": 82.2,
+   "end_ms": 82.7,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.operation.name": "execute_tool",
+    "gen_ai.tool.name": "gateway_state",
+    "gen_ai.tool.call.arguments": "{}",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.tool.call.result": "{\"site\":\"A\",\"latency_ms\":5.0,\"error_rate\":0.001}"
+   }
+  },
+  {
+   "name": "chat gpt-4.1-mini",
+   "trace_id": "732b5d0ee50f3d550ac416c6e6790679",
+   "span_id": "bba8e905e5225585",
+   "parent_id": "2236f0dec0dad8aa",
+   "start_ms": 83.9,
+   "end_ms": 85.3,
+   "status": "UNSET",
+   "error": null,
+   "attributes": {
+    "gen_ai.request.model": "gpt-4.1-mini",
+    "gen_ai.operation.name": "chat",
+    "gen_ai.agent.name": "remediation",
+    "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_3705722b032549ff82c4010a33d86786\",\"name\":\"final_result\",\"arguments\":{\"status\":\"resolved\",\"actions\":[\"rollback_change\"],\"summary\":\"Gateway on site A.\"}}]}]",
+    "gen_ai.usage.input_tokens": 132,
+    "gen_ai.usage.output_tokens": 26
+   }
+  }
+ ]
+}

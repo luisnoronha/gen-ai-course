@@ -1,0 +1,26 @@
+[
+ {
+  "file": "t1.json",
+  "title": "Trace 1 \u00b7 INC-1 \u00b7 runbook",
+  "should_fire": false,
+  "what_happened": "Healthy. Network found CHG-4750, remediation rolled it back, the gateway recovered. Nothing should fire."
+ },
+ {
+  "file": "t2.json",
+  "title": "Trace 2 \u00b7 INC-2 \u00b7 pipeline",
+  "should_fire": true,
+  "what_happened": "The database specialist went round in circles (read_metrics/read_logs on every component) and stopped without an answer. So nobody told remediation that site B is in maintenance: it failed over to site B and reported 'resolved' with 45% errors."
+ },
+ {
+  "file": "t3.json",
+  "title": "Trace 3 \u00b7 INC-1 \u00b7 runbook",
+  "should_fire": true,
+  "what_happened": "The network specialist found the ACL change but did not quote its id (CHG-4750). Remediation could not roll back an unnamed change, failed over to site B instead and reported 'resolved'. The gateway did not recover."
+ },
+ {
+  "file": "t4.json",
+  "title": "Trace 4 \u00b7 INC-2 \u00b7 orchestrator",
+  "should_fire": true,
+  "what_happened": "The incident was resolved, but the orchestrator asked both specialists everything twice ('double-check'): about twice the model calls and tokens needed. A cost problem, not a correctness one."
+ }
+]
