@@ -7,7 +7,7 @@ Every call carries the header A2A-Version: 1.0, and asks for an immediate answer
 
 What your client gets (the `a2a` object):
 - a2a.card()                                  the Settlement Agent's Agent Card (skills, security, ...)
-- await a2a.send_message(message, token)      JSON-RPC SendMessage; returns a Task, or an {"error": ...}
+- await a2a.send_message(message, token)      JSON-RPC SendMessage; its result is {"task": ...}: returns that Task, or an {"error": ...}
 - await a2a.get_task(task_id, token)          JSON-RPC GetTask; returns the Task as it is now
 - a2a.token                                   your team's bearer token for settlement
 - a2a.request                                 what you need: {"incident": ..., "batch": ..., "approval_ref": ...}
@@ -36,6 +36,7 @@ from room import load_starter, patient
 from world import BATCH, World
 
 TOKEN = "stl-7f3a-incident-team"
+CONFIRMATIONS, MEMBERS = 1240, 38  # what batch-10:12 holds: settlement asks the client to confirm this number
 WORK_SECONDS = 3.0  # how long settlement takes to resend a batch
 MAX_SECONDS = 60
 
@@ -58,7 +59,9 @@ CARD: dict[str, Any] = {
         "id": "resend-confirmations",
         "name": "Resend order confirmations",
         "description": ("Resends a delayed batch of order confirmations to settlement. Needs the batch id and the on-call's "
-                        "approval reference. Send an idempotency_key in a data part: a key settlement has seen is never sent twice. "
+                        "approval reference. Members are charged for every confirmation sent, so before resending the agent asks, "
+                        "in the same task, to confirm how many confirmations will go out: reply in that task with a data part "
+                        "{\"confirm_count\": N}. Send an idempotency_key in a data part: a key settlement has seen is never sent twice. "
                         "Long-running: the task stays TASK_STATE_WORKING for a few seconds; poll it with GetTask. "
                         "Every SendMessage without a taskId or a known idempotency_key starts a NEW resend."),
         "tags": ["settlement", "confirmations", "resend"],
@@ -102,6 +105,8 @@ class SettlementAgent:
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32001, "message": "Unauthorized: this agent needs a bearer token (see securitySchemes in the Agent Card)."}}
         if method == "SendMessage":
             result = await self._send(params.get("message", {}))
+            if "error" not in result:
+                result = {"task": result}  # SendMessageResponse: a Task (or a Message)
         elif method == "GetTask":
             result = self._get(params.get("id", ""))
         else:
@@ -114,9 +119,9 @@ class SettlementAgent:
         parts = message.get("parts", [])
         data = {k: v for p in parts if isinstance(p.get("data"), dict) for k, v in p["data"].items()}
         key = data.get("idempotency_key")
-        if key and key in self.by_key:  # the same key: the same task, nothing new
-            return self._get(self.by_key[key])
         task_id = message.get("taskId")
+        if key and key in self.by_key and not task_id:  # a new request with a key already seen: the same task, nothing new
+            return self._get(self.by_key[key])
         if task_id and task_id not in self.tasks:
             return {"error": {"code": -32001, "message": f"Task not found: {task_id}"}}
         if task_id and self.tasks[task_id]["status"]["state"] != INPUT_REQUIRED:
@@ -131,18 +136,24 @@ class SettlementAgent:
             self.by_key[key] = task_id
             self.tasks[task_id]["metadata"]["idempotency_key"] = key
         self.texts[task_id].append(message)
+        task = self.tasks[task_id]
+        if task["metadata"].get("approval_ref"):  # batch and approval known: this answer should confirm the count
+            if data.get("confirm_count") == CONFIRMATIONS:
+                task["status"] = _status(WORKING, f"Resending {BATCH}. This takes a few seconds: poll GetTask.")
+                self.finish_at[task_id] = time.monotonic() + WORK_SECONDS
+            else:
+                task["status"] = _confirm_question(f"That does not confirm {CONFIRMATIONS}. ")
+            return self._get(task_id)
         understood = (await Agent(self.model, output_type=SettlementRequest, instructions=SETTLEMENT, name="settlement",
                                   retries=3).run(json.dumps(self.texts[task_id]))).output
-        task = self.tasks[task_id]
         if understood.batch != BATCH:
             task["status"] = _status(REJECTED, f"Unknown batch {understood.batch!r}. Delayed batch today: {BATCH}.")
         elif not understood.approval_ref:
             task["status"] = _status(INPUT_REQUIRED, "I need the on-call's approval reference (APR-...) before resending. "
                                                        "Reply in this task (same taskId).")
         else:
-            task["status"] = _status(WORKING, f"Resending {BATCH}. This takes a few seconds: poll GetTask.")
             task["metadata"].update(batch=understood.batch, approval_ref=understood.approval_ref)
-            self.finish_at[task_id] = time.monotonic() + WORK_SECONDS
+            task["status"] = _confirm_question("")
         return self._get(task_id)
 
     def _get(self, task_id: str) -> dict[str, Any]:
@@ -159,12 +170,19 @@ class SettlementAgent:
                                                                           "outcome": result["outcome"]}}]}]
             else:
                 task["status"] = _status(FAILED, result["detail"])
-            self.post("settlement", "systems", f"{task_id}: resend_confirmations {meta['batch']} → {result['outcome']}", "action")
+            self.post("settlement", "systems", f"{task_id}: resend_confirmations {meta['batch']} → {result['outcome']} · {result['detail']}", "action")
         return json.loads(json.dumps(task))
 
 
-def _status(state: str, text: str) -> dict[str, Any]:
-    return {"state": state, "message": {"role": "ROLE_AGENT", "messageId": uuid.uuid4().hex[:8], "parts": [{"text": text}]}}
+def _status(state: str, text: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
+    parts: list[dict[str, Any]] = [{"text": text}] + ([{"data": data}] if data else [])
+    return {"state": state, "message": {"role": "ROLE_AGENT", "messageId": uuid.uuid4().hex[:8], "parts": parts}}
+
+
+def _confirm_question(prefix: str) -> dict[str, Any]:
+    return _status(INPUT_REQUIRED, f"{prefix}{BATCH} holds {CONFIRMATIONS} confirmations for {MEMBERS} members, and each one is charged. "
+                                   'To resend, reply in this task with a data part {"confirm_count": ' + str(CONFIRMATIONS) + "}.",
+                   {"confirmations": CONFIRMATIONS, "members": MEMBERS, "reply_with": "confirm_count"})
 
 
 # The client side: what your code uses -------------------------------------------------------------
@@ -209,15 +227,18 @@ class A2ARun:
         self.set_card("settlement", "working", method)
         answer = await self.server.handle(request, token)
         body = answer.get("result") or answer.get("error")
+        body = body.get("task", body)
         shown = f"{body.get('id', '')} · {body['status']['state']}: {_text(body)}" if "status" in body else json.dumps(body)
         self.post("settlement", "client", shown, "a2a")
         self.set_card("settlement", "done", shown)
         if "error" in answer:
             return {"error": answer["error"]}
-        return answer["result"]
+        return answer["result"].get("task", answer["result"])
 
     async def send_message(self, message: dict[str, Any], token: str | None = None) -> dict[str, Any]:
-        """JSON-RPC SendMessage. message: {"role": "ROLE_USER", "parts": [...], "taskId"?: ..., "contextId"?: ...}"""
+        """JSON-RPC SendMessage. message: {"role": "ROLE_USER", "parts": [...], "taskId"?: ..., "contextId"?: ...}
+
+        The JSON-RPC result is {"task": {...}}; this helper returns the Task inside it. It adds the messageId."""
         message = {"messageId": uuid.uuid4().hex[:8], **message}
         return await self._call("SendMessage", {"message": message, "configuration": {"returnImmediately": True}}, token)
 
@@ -280,4 +301,4 @@ class A2ARun:
 
 def _text(task: dict[str, Any]) -> str:
     parts = task.get("status", {}).get("message", {}).get("parts", [])
-    return " ".join(p.get("text", "") for p in parts)
+    return " ".join(p["text"] if "text" in p else json.dumps(p.get("data")) for p in parts)

@@ -2,7 +2,8 @@
 
     uv run --locked python sessions/course-02-agentic-ai/08-agents-in-production/lab/tests/make_traces.py
 
-Each trace replays, with a scripted model, a failure seen with gpt-4.1-mini while building the lab of session 7.
+Each trace runs the session 7 team with a scripted model. Trace 2 replays a failure seen with gpt-4.1-mini while building
+session 7; traces 3 and 4 are failures built for the exercise.
 """
 
 from __future__ import annotations
@@ -24,7 +25,12 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import FunctionModel
 
-SOURCE = "replayed with a scripted model: a failure seen with gpt-4.1-mini while building session 7"
+SOURCES = {
+    "t1": "Scripted model: a healthy run",
+    "t2": "Scripted model: replays a failure seen with gpt-4.1-mini while building session 7",
+    "t3": "Scripted model: a failure built for the exercise",
+    "t4": "Scripted model: a failure built for the exercise",
+}
 
 
 def instructions(messages) -> str:
@@ -97,7 +103,7 @@ def main() -> None:
         # each trace in a fresh process state: the recorder patches the team module
         for module in [m for m in sys.modules if m in ("team", "world")]:
             del sys.modules[module]
-        trace = record.record(model, incident, pattern, title, SOURCE, model_label="gpt-4.1-mini")
+        trace = record.record(model, incident, pattern, title, SOURCES[name], model_label="gpt-4.1-mini")
         (out / f"{name}.json").write_text(json.dumps(trace, indent=1), encoding="utf-8")
         index.append({"file": f"{name}.json", "title": title, "should_fire": should_fire, "what_happened": truth})
         print(name, len(trace["spans"]), "spans")

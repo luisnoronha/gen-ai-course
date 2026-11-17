@@ -18,6 +18,7 @@ You work in tab **1 · Ask another team's agent** and in the file `starter/a2a_c
 **1 · See the problem** · 5 min
 - Tab **1 · Ask another team's agent** → click **Run**.
 - Watch the messages: every **A2A** line is a JSON-RPC call (`SendMessage`, `GetTask`) or its answer. How many tasks were created? How many resends?
+- Settlement asked the client a question. Which one? Where did the client answer it?
 
 **2 · Read the Agent Card** · 5 min
 - Open **The Settlement Agent's card** under the button. Read the skill's description to the end.
@@ -54,14 +55,14 @@ You work in tab **2 · Find the cause in the traces** and in the file `starter/m
 **3 · Write the monitors and the analyst** · 20 min
 - In `starter/monitors.py`: write monitors (code), `describe(trace)` (what the analyst sees) and `ANALYST_INSTRUCTIONS`.
 - Save and click **Run monitors and analyst** again.
-- Goal: problems caught, no false alarm on the healthy trace, and the analyst names the real cause.
+- Goal: problems caught and no false alarm on the healthy trace (the green and red lines check this); and the analyst names the real cause (you check this one, against **What really happened**).
 - Open **What really happened** under each answer only after you have your own.
 
 **4 · A live run** (optional) · 5 min
 - Click **Record a live run**: the team of session 7 runs on INC-2 with the real model (about 30 s). Your monitors run on it too.
 
 **Questions to discuss**
-1. None of the problems raised an error. What does "it went wrong" look like in a trace?
+1. Only one of the three problems raised an error. What does "it went wrong" look like in the other two?
 2. Which of your monitors would you page someone for at 3 a.m.? Which only go on a dashboard?
 3. What did your analyst need to see that the naive describe() did not show?
 4. Session 6 evaluated before launch. What can only be seen in production?

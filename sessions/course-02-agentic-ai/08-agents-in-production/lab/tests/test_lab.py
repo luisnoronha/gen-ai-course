@@ -98,8 +98,8 @@ def test_a2a_server_needs_the_token_and_dedupes_keys():
     send = {"jsonrpc": "2.0", "id": 1, "method": "SendMessage", "params": {"message": {"role": "ROLE_USER", "parts": [
         {"text": "Resend batch-10:12, approval APR-001"}, {"data": {"idempotency_key": "k"}}]}}}
     assert "error" in asyncio.run(server.handle(send, None))
-    first = asyncio.run(server.handle(send, A.TOKEN))["result"]
-    again = asyncio.run(server.handle(send, A.TOKEN))["result"]
+    first = asyncio.run(server.handle(send, A.TOKEN))["result"]["task"]
+    again = asyncio.run(server.handle(send, A.TOKEN))["result"]["task"]
     assert first["id"] == again["id"] and len(server.tasks) == 1
 
 

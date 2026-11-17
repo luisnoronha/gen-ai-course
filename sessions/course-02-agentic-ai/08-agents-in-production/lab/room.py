@@ -3,8 +3,7 @@
 The lab runs the first half of the incident (investigation, plan, approvals, the failover) and saves a checkpoint
 after each step. Then the process "crashes" (a shift change). Your starter/resume.py continues from the checkpoint.
 
-What your resume gets (the `room`):
-- room.checkpoint                  the last checkpoint saved before the crash (a dict; also shown on the page)
+What your resume gets: the checkpoint read back from its file (a dict, also shown on the page), and the `room`:
 - await room.ask(name, message)    send a task to an agent and get its answer as text: "remediation" or "reviewer"
 - room.history()                   every action the systems really ran (action, target, key, time). Survives the crash.
 - room.approval_status(ref)        is an approval still valid now? (valid, reason)
@@ -24,6 +23,8 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel
+
+os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")  # keep the terminal quiet: the board shows every call
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
@@ -236,7 +237,7 @@ def first_half(room: Room) -> None:
     step()
     room.set_card("remediation", "working", "Failing over to site C…")
     result = world.failover_gateway("C", failover["key"], failover["approval_ref"], "remediation")
-    room.post("remediation", "systems", f"failover_gateway site-C: {result['outcome']}", "action")
+    room.post("remediation", "systems", f"failover_gateway site-C [{failover['key']}]: {result['outcome']} · {result['detail']}", "action")
     failover["status"] = "done"
     room.save("step 1 done")
     step()
@@ -252,7 +253,7 @@ def first_half(room: Room) -> None:
         room.set_card("remediation", "working", f"Resending {BATCH}…")
         step()
         result = world.resend_confirmations(BATCH, resend["key"], resend["approval_ref"], "remediation")
-        room.post("remediation", "systems", f"resend_confirmations {BATCH}: {result['outcome']}", "action")
+        room.post("remediation", "systems", f"resend_confirmations {BATCH} [{resend['key']}]: {result['outcome']} · {result['detail']}", "action")
     _crash(room, PAUSE[room.scenario])
 
 
@@ -303,7 +304,7 @@ def history(ctx: RunContext[Seat]) -> list[dict[str, Any]]:
 def _approval(ctx: RunContext[Seat], action: str, target: str, approval_ref: str | None, reason: str) -> str:
     room = ctx.deps.room
     if approval_ref:
-        room.post(ctx.deps.name, "systems", f"Using approval {approval_ref} for {action} {target}", "approval")
+        room.post(ctx.deps.name, "systems", f"Using approval {approval_ref} for {action} {target}", "tool")
         return approval_ref
     return _approve(room, action, target, reason)
 
@@ -314,8 +315,9 @@ def failover_gateway(ctx: RunContext[Seat], site: Literal["A", "B", "C"], idempo
     approval_ref: an approval you were given; leave it empty to ask the on-call for a new one."""
     room = ctx.deps.room
     ref = _approval(ctx, "failover_gateway", f"site-{site}", approval_ref, reason)
+    broken = len(room.world.violations)
     result = room.world.failover_gateway(site, idempotency_key, ref, ctx.deps.name)
-    room.post(ctx.deps.name, "systems", f"failover_gateway site-{site} [{idempotency_key}]: {result['outcome']}", "action")
+    room.post(ctx.deps.name, "systems", f"failover_gateway site-{site} [{idempotency_key}]: {_outcome(room, result, broken)}", "action")
     return result
 
 
@@ -325,9 +327,18 @@ def resend_confirmations(ctx: RunContext[Seat], batch: str, idempotency_key: str
     approval_ref: an approval you were given; leave it empty to ask the on-call for a new one."""
     room = ctx.deps.room
     ref = _approval(ctx, "resend_confirmations", batch, approval_ref, reason)
+    broken = len(room.world.violations)
     result = room.world.resend_confirmations(batch, idempotency_key, ref, ctx.deps.name)
-    room.post(ctx.deps.name, "systems", f"resend_confirmations {batch} [{idempotency_key}]: {result['outcome']}", "action")
+    room.post(ctx.deps.name, "systems", f"resend_confirmations {batch} [{idempotency_key}]: {_outcome(room, result, broken)}", "action")
     return result
+
+
+def _outcome(room: Room, result: dict[str, Any], broken: int) -> str:
+    """The outcome, its detail, and any rule the action just broke: what the board shows."""
+    text = f"{result['outcome']} · {result['detail']}"
+    for violation in room.world.violations[broken:]:
+        text += f" · ⚠ {violation}"
+    return text
 
 
 REMEDIATION = ("You are the remediation specialist of the Meridian Exchange incident team. Carry out the task you get, step by step, "

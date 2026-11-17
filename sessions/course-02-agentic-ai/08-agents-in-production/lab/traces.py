@@ -78,9 +78,10 @@ def recorded() -> list[tuple[Trace, dict[str, Any]]]:
     index = json.loads((TRACES / "index.json").read_text(encoding="utf-8"))
     out = [(Trace(json.loads((TRACES / item["file"]).read_text(encoding="utf-8")), item["file"]), item) for item in index]
     for path in sorted(LIVE.glob("live-*.json")) if LIVE.exists() else []:
-        out.append((Trace(json.loads(path.read_text(encoding="utf-8")), path.name),
-                    {"file": path.name, "title": json.loads(path.read_text(encoding="utf-8"))["title"], "should_fire": None,
-                     "what_happened": "A live run: nobody knows yet. Read the trace."}))
+        trace = Trace(json.loads(path.read_text(encoding="utf-8")), path.name)
+        trace.title = f"{trace.title} · {path.stem.removeprefix('live-')}"  # two live runs never share a title
+        out.append((trace, {"file": path.name, "title": trace.title, "should_fire": None,
+                            "what_happened": "A live run: nobody knows yet. Read the trace."}))
     return out
 
 
@@ -147,8 +148,17 @@ class Review:
         analyst = Agent(patient(self.model), instructions=mine.ANALYST_INSTRUCTIONS, name="trace-analyst", retries=3)
         traces = recorded()
 
+        def watch(trace: Trace) -> list[str]:
+            alerts = []
+            for monitor in mine.MONITORS:
+                try:
+                    alerts += [f"{monitor.__name__}: {alert}" for alert in monitor(trace)]
+                except Exception as error:  # say which monitor broke, on which trace
+                    raise RuntimeError(f"your monitor {monitor.__name__}() failed on '{trace.title}': {type(error).__name__}: {error}") from error
+            return alerts
+
         async def review(trace: Trace, info: dict[str, Any]) -> dict[str, Any]:
-            alerts = [f"{monitor.__name__}: {alert}" for monitor in mine.MONITORS for alert in monitor(trace)]
+            alerts = watch(trace)
             answer = (await analyst.run(mine.describe(trace))).output
             return {"trace": trace.title, "should_fire": info["should_fire"], "alerts": alerts, "analyst": answer,
                     "what_happened": info["what_happened"]}
@@ -173,6 +183,9 @@ def record_live(incident: str = "INC-2", pattern: str = "pipeline") -> Path:
     """Run the session 7 team with the real model, in its own process, and save the trace."""
     LIVE.mkdir(exist_ok=True)
     out = LIVE / f"live-{time.strftime('%H%M%S')}.json"
-    subprocess.run([sys.executable, str(HERE / "record.py"), "--out", str(out), "--incident", incident, "--pattern", pattern],
-                   check=True, cwd=HERE.parents[3], capture_output=True, timeout=300)
+    done = subprocess.run([sys.executable, str(HERE / "record.py"), "--out", str(out), "--incident", incident, "--pattern", pattern],
+                          cwd=HERE.parents[3], capture_output=True, text=True, timeout=300, check=False)
+    if done.returncode != 0:
+        lines = (done.stderr or done.stdout).strip().splitlines()
+        raise RuntimeError(lines[-1] if lines else f"record.py stopped with code {done.returncode}")
     return out

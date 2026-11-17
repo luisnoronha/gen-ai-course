@@ -70,9 +70,10 @@ class Fleet:
 
     # The workers -----------------------------------------------------------------------------------
 
-    def _act(self, worker: str, incident: str, action: str) -> None:
+    def _act(self, worker: str, incident: str, action: str, check_history: bool = False) -> None:
+        """Run the action. When taking over someone else's incident, read the systems' history first."""
         with self._lock:
-            if self.mode == "shared" and any(e["incident"] == incident for e in self.effects):
+            if check_history and any(e["incident"] == incident for e in self.effects):
                 skip = True
             else:
                 skip = False
@@ -114,7 +115,7 @@ class Fleet:
             if self._take("worker-2", incident):
                 self.set_card("worker-2", "working", f"{incident}: taken over")
                 time.sleep(STEP)
-                self._act("worker-2", incident, action)
+                self._act("worker-2", incident, action, check_history=True)
                 self._finish("worker-2", incident)
         self.set_card("worker-2", "done", "Queue empty.")
 
