@@ -1,4 +1,4 @@
-"""What every exercise of session 9 shares: loading your starter files, and the models."""
+"""What the lab of session 9 shares: loading your starter file, and the models."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")  # keep the terminal quiet
 SMALL = os.getenv("OPENAI_MODEL_SMALL", "gpt-4.1-nano")
 LARGE = os.getenv("OPENAI_MODEL_LARGE", "gpt-4.1")
 PRICES = {"gpt-4.1": (2.00, 8.00), "gpt-4.1-mini": (0.40, 1.60), "gpt-4.1-nano": (0.10, 0.40)}  # USD per 1M tokens (in, out)
+BACKUP_MARKUP = 1.25  # provider B: the same strong model in the lab, sold 25% dearer (simulated second provider)
 
 
 def use_solutions() -> bool:
@@ -42,12 +43,14 @@ def patient(model: Any) -> Any:
 
 
 def models(chosen: Any) -> dict[str, Any]:
-    """{"small": ..., "large": ...}. The real OpenAI models, or the test doubles the tests give."""
+    """{"small": ..., "large": ..., "backup": ...}. The real OpenAI models, or the test doubles the tests give.
+
+    "backup" stands for a second provider. In the lab it is the same strong model, so the exercise runs with one API key."""
     if isinstance(chosen, dict):
-        return chosen
+        return {"backup": chosen["large"], **chosen}
     if isinstance(chosen, str):
-        return {"small": f"openai:{SMALL}", "large": f"openai:{LARGE}"}
-    return {"small": chosen, "large": chosen}
+        return {"small": f"openai:{SMALL}", "large": f"openai:{LARGE}", "backup": f"openai:{LARGE}"}
+    return {"small": chosen, "large": chosen, "backup": chosen}
 
 
 def model_name(model: Any) -> str:

@@ -25,6 +25,8 @@ Needs `OPENAI_API_KEY` in the repository's `.env`. Click **What to try** (top ri
 
 The task and the hints are at the top of each file. Compare your runs in the table **Every run**.
 
+**Solutions published.** The three files now hold one good answer each. The naive versions the exercises started from are in `lab/tests/naive/`.
+
 The **Demo** tab is for the trainer: two workers, one queue, and where the state lives.
 
 ## Files

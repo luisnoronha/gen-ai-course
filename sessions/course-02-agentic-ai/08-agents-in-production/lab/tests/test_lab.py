@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 import sys
 from pathlib import Path
 
@@ -22,18 +21,14 @@ REFERENCE = REPO / "private/course-02-agentic-ai/reference/session-08"
 
 
 @pytest.fixture
-def naive():
-    names = ("resume.py", "a2a_client.py", "monitors.py")
-    saved = {name: (R.STARTER / name).read_text(encoding="utf-8") for name in names}
-    yield
-    for name, text in saved.items():
-        (R.STARTER / name).write_text(text, encoding="utf-8")
+def naive(monkeypatch):
+    """The naive starters (starter/ now holds the published solutions)."""
+    monkeypatch.setattr(R, "STARTER", Path(__file__).parent / "naive")
 
 
 @pytest.fixture
-def solutions(naive):
-    for name in ("resume.py", "a2a_client.py", "monitors.py"):
-        shutil.copy(REFERENCE / name, R.STARTER / name)
+def solutions(monkeypatch):
+    monkeypatch.setattr(R, "STARTER", REFERENCE)
 
 
 @pytest.fixture(autouse=True)
